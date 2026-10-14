@@ -2,7 +2,11 @@
 
 import argparse
 import re
+import socket
+import sys
 from dataclasses import dataclass
+
+from src.handshake import HandshakeError, handshake
 
 DEFAULT_PORT = 8080
 DEFAULT_SEGMENT_SIZE = 512
@@ -109,6 +113,18 @@ def main(argv=None):
     print(f"protocolo={config.protocol} janela={config.window} "
           f"segment_size={config.segment_size} loss={config.loss} "
           f"timeout={config.timeout_ms}ms")
-    print("Transferência ainda não implementada (próximas issues: handshake, "
-          "loop Stop-and-Wait, ...).")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        ok = handshake(sock, (config.server, config.port), config.group,
+                       config.file, config.segment_size, config.timeout_ms)
+    except HandshakeError as exc:
+        print(f"erro no handshake: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        sock.close()
+    print(f"handshake OK | file_size={ok.file_size} "
+          f"total_segments={ok.total_segments} segment_size={ok.segment_size} "
+          f"checksum={ok.checksum} seed={ok.seed}")
+    print("Transferência ainda não implementada (próxima issue: loop "
+          "Stop-and-Wait).")
     return 0
