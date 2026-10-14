@@ -1,8 +1,11 @@
 import contextlib
 import io
 import os
+import socket
 import subprocess
 import sys
+import tempfile
+import threading
 import unittest
 
 from src.cli import DEFAULT_GBN_SR_WINDOW, parse_args
@@ -84,16 +87,46 @@ class ParseArgsTest(unittest.TestCase):
                 self.assertEqual(status, 2)
 
 
+class FakeServer:
+    """Servidor UDP em localhost que serve um arquivo de um único segmento."""
+
+    REPLIES = {
+        b"HELLO": b"OK|file_size=4|checksum=x|seed=s|total_segments=1|segment_size=4",
+        b"REQ": b"DATA|seq=0|total=4|abcd",
+    }
+
+    def __init__(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.settimeout(5)
+        self.port = self.sock.getsockname()[1]
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        while True:
+            try:
+                data, client = self.sock.recvfrom(2048)
+            except OSError:
+                return
+            kind = data.split(b"|", 1)[0]
+            self.sock.sendto(self.REPLIES.get(kind, b"ERROR|msg=x"), client)
+
+
 class EntryPointTest(unittest.TestCase):
     def run_cliente(self, *args):
-        return subprocess.run(
-            [sys.executable, "cliente.py", *args],
-            cwd=ROOT, capture_output=True, text=True, timeout=30,
-        )
+        # Roda em diretório temporário para não sobrescrever data/ do repositório.
+        with tempfile.TemporaryDirectory() as cwd:
+            return subprocess.run(
+                [sys.executable, os.path.join(ROOT, "cliente.py"), *args],
+                cwd=cwd, capture_output=True, text=True, timeout=30,
+            )
 
     def test_starts_with_group(self):
+        server = FakeServer()
+        self.addCleanup(server.sock.close)
         result = self.run_cliente(
-            "--server", "137.131.178.229", "--group", "grupo07", "--file", "small")
+            "--server", "127.0.0.1", "--port", str(server.port),
+            "--group", "grupo07", "--file", "small")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("grupo=grupo07", result.stdout)
 
