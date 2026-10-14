@@ -113,9 +113,18 @@ def main(argv=None):
     print(f"protocolo={config.protocol} janela={config.window} "
           f"segment_size={config.segment_size} loss={config.loss} "
           f"timeout={config.timeout_ms}ms")
+    # O recvfrom devolve o IP do remetente; resolver o hostname aqui permite
+    # comparar o endereço das respostas com o do servidor.
+    try:
+        server_addr = (socket.gethostbyname(config.server), config.port)
+    except socket.gaierror as exc:
+        print(f"erro: não foi possível resolver {config.server}: {exc}",
+              file=sys.stderr)
+        return 1
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        ok = handshake(sock, (config.server, config.port), config.group,
+        ok = handshake(sock, server_addr, config.group,
                        config.file, config.segment_size, config.timeout_ms)
     except HandshakeError as exc:
         print(f"erro no handshake: {exc}", file=sys.stderr)
