@@ -15,9 +15,27 @@ class DownloadError(Exception):
 
 
 @dataclass(frozen=True)
+class SegmentStats:
+    """Métricas de um segmento, base de uma linha do CSV."""
+    seq: int
+    received_at: float     # time.time() na chegada do DATA (mesmo relógio do Wireshark)
+    size_bytes: int
+    rtt_ms: float          # do último REQ enviado até o DATA
+    retransmissions: int   # REQs reenviados por timeout
+
+    @property
+    def timeout_occurred(self):
+        return self.retransmissions > 0
+
+
+@dataclass(frozen=True)
 class Download:
     content: bytes
-    retransmissions: int
+    segments: list
+
+    @property
+    def retransmissions(self):
+        return sum(s.retransmissions for s in self.segments)
 
 
 def wait_for_data(sock, server_addr, expected_seq, timeout_s):
@@ -52,15 +70,14 @@ def wait_for_data(sock, server_addr, expected_seq, timeout_s):
 def download(sock, server_addr, total_segments, timeout_ms,
              max_retries=DEFAULT_MAX_RETRIES):
     """Baixa todos os segmentos em Stop-and-Wait e remonta o arquivo."""
-    segments = []
-    retransmissions = 0
+    payloads = []
+    stats = []
 
     for seq in range(total_segments):
         req = build_req(seq)
         for attempt in range(max_retries + 1):
             sock.sendto(req, server_addr)
-            if attempt > 0:
-                retransmissions += 1
+            sent_at = time.monotonic()
             data = wait_for_data(sock, server_addr, seq, timeout_ms / 1000)
             if data is not None:
                 break
@@ -68,7 +85,13 @@ def download(sock, server_addr, total_segments, timeout_ms,
             raise DownloadError(
                 f"segmento {seq}: sem resposta após {max_retries} retransmissões")
 
-        segments.append(data.payload)
+        # RTT medido a partir do último REQ: com retransmissão não dá para
+        # saber a qual REQ o DATA responde (algoritmo de Karn).
+        rtt_ms = (time.monotonic() - sent_at) * 1000
+        stats.append(SegmentStats(seq=seq, received_at=time.time(),
+                                  size_bytes=len(data.payload), rtt_ms=rtt_ms,
+                                  retransmissions=attempt))
+        payloads.append(data.payload)
         sock.sendto(build_ack(seq), server_addr)
 
-    return Download(content=b"".join(segments), retransmissions=retransmissions)
+    return Download(content=b"".join(payloads), segments=stats)

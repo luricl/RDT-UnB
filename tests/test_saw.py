@@ -2,7 +2,7 @@ import socket
 import threading
 import unittest
 
-from src.saw import Download, DownloadError, download
+from src.saw import DownloadError, download
 
 SEGMENTS = [b"aaaa|bb", b"cccc", b"dd"]
 
@@ -60,7 +60,19 @@ class SawTest(unittest.TestCase):
 
     def test_downloads_all_segments(self):
         result = self.run_download(FakeServer())
-        self.assertEqual(result, Download(b"".join(SEGMENTS), 0))
+        self.assertEqual(result.content, b"".join(SEGMENTS))
+        self.assertEqual(result.retransmissions, 0)
+        self.assertEqual([s.seq for s in result.segments], [0, 1, 2])
+        self.assertEqual([s.size_bytes for s in result.segments],
+                         [len(p) for p in SEGMENTS])
+
+    def test_segment_stats_after_retransmission(self):
+        result = self.run_download(FakeServer(drop={(1, 1), (1, 2)}))
+        self.assertEqual([s.retransmissions for s in result.segments], [0, 2, 0])
+        self.assertEqual([s.timeout_occurred for s in result.segments],
+                         [False, True, False])
+        # RTT conta a partir do último REQ, não inclui os 2 timeouts de 100 ms.
+        self.assertLess(result.segments[1].rtt_ms, 100)
 
     def test_retransmits_lost_req(self):
         result = self.run_download(FakeServer(drop={(1, 1), (1, 2)}))
