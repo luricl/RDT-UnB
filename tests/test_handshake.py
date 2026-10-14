@@ -48,14 +48,14 @@ class HandshakeTest(unittest.TestCase):
 
     def run_handshake(self, server, max_attempts=3):
         self.addCleanup(server.close)
-        return handshake(self.client, server.addr, "grupo01", "small", 512,
+        return handshake(self.client, server.addr, "grupo07", "small", 512,
                          timeout_ms=100, max_attempts=max_attempts)
 
     def test_returns_negotiated_values(self):
         server = FakeServer([OK_PACKET])
         ok = self.run_handshake(server)
         self.assertEqual(server.received,
-                         [b"HELLO|grupo=grupo01|segment_size=512|file=small"])
+                         [b"HELLO|grupo=grupo07|segment_size=512|file=small"])
         self.assertEqual(ok.segment_size, 1024)  # difere do solicitado (512)
         self.assertEqual(ok.total_segments, 1024)
         self.assertEqual(ok.file_size, 1048576)
@@ -84,7 +84,7 @@ class HandshakeTest(unittest.TestCase):
             for pkt in (b"ERROR|msg=algo", b"lixo", OK_PACKET):
                 server.sock.sendto(pkt, client_addr)
         threading.Thread(target=extra, daemon=True).start()
-        ok = handshake(self.client, server.addr, "grupo01", "small", 512,
+        ok = handshake(self.client, server.addr, "grupo07", "small", 512,
                        timeout_ms=1000, max_attempts=1)
         self.assertEqual(ok.segment_size, 1024)
 

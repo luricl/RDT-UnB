@@ -16,8 +16,8 @@ def data_packet(seq, payload):
 
 class BuildTest(unittest.TestCase):
     def test_hello(self):
-        self.assertEqual(build_hello("grupo01", 512, "small"),
-                         b"HELLO|grupo=grupo01|segment_size=512|file=small")
+        self.assertEqual(build_hello("grupo07", 512, "small"),
+                         b"HELLO|grupo=grupo07|segment_size=512|file=small")
 
     def test_req_ack_fin_ping(self):
         self.assertEqual(build_req(0), b"REQ|seq=0")
