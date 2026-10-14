@@ -1,6 +1,6 @@
 # Scrip de teste do Servidor RDT-UnB
 #  
-# executar:  python3 teste_rdt_unb.py 
+# executar:  python3 scripts/checa_servidor.py 
 # A saída esperada deve ser algo como: 
 ''' ------
 HELLO: OK|file_size=1048576|checksum=f5adc7ebd10d3997cfa18c8a73a7f9
