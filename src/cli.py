@@ -120,9 +120,17 @@ def main(argv=None):
               file=sys.stderr)
         return 1
 
+    # O recvfrom devolve o IP do remetente; resolver o hostname aqui permite
+    # comparar o endereço das respostas com o do servidor.
+    try:
+        server_addr = (socket.gethostbyname(config.server), config.port)
+    except socket.gaierror as exc:
+        print(f"erro: não foi possível resolver {config.server}: {exc}",
+              file=sys.stderr)
+        return 1
+
     # Mesmo socket no handshake e na transferência: o servidor associa a
     # sessão ao endereço de origem do HELLO.
-    server_addr = (config.server, config.port)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         ok = handshake(sock, server_addr, config.group, config.file,
