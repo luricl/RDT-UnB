@@ -8,7 +8,7 @@ import unittest
 from src.cli import DEFAULT_GBN_SR_WINDOW, parse_args
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BASE = ["--server", "137.131.178.229", "--group", "grupo01"]
+BASE = ["--server", "137.131.178.229", "--group", "grupo07"]
 
 
 def parse_fails(argv):
@@ -25,7 +25,7 @@ class ParseArgsTest(unittest.TestCase):
         config = parse_args(BASE)
         self.assertEqual(config.server, "137.131.178.229")
         self.assertEqual(config.port, 8080)
-        self.assertEqual(config.group, "grupo01")
+        self.assertEqual(config.group, "grupo07")
         self.assertEqual(config.file, "small")
         self.assertEqual(config.protocol, "saw")
         self.assertEqual(config.window, 1)
@@ -93,9 +93,9 @@ class EntryPointTest(unittest.TestCase):
 
     def test_starts_with_group(self):
         result = self.run_cliente(
-            "--server", "137.131.178.229", "--group", "grupo01", "--file", "small")
+            "--server", "137.131.178.229", "--group", "grupo07", "--file", "small")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("grupo=grupo01", result.stdout)
+        self.assertIn("grupo=grupo07", result.stdout)
 
     def test_exits_with_error_without_group(self):
         result = self.run_cliente("--server", "137.131.178.229", "--file", "small")
