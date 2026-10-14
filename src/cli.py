@@ -1,12 +1,14 @@
 """Interface de linha de comando do cliente RDT-UnB."""
 
 import argparse
+import os
 import re
 import socket
 import sys
 from dataclasses import dataclass
 
 from src.handshake import HandshakeError, handshake
+from src.saw import DownloadError, download
 
 DEFAULT_PORT = 8080
 DEFAULT_SEGMENT_SIZE = 512
@@ -44,7 +46,7 @@ def build_parser():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT,
                         help="porta UDP do servidor (padrão: %(default)s)")
     parser.add_argument("--group",
-                        help="identificador do grupo, ex.: grupo01 (OBRIGATÓRIO)")
+                        help="identificador do grupo, ex.: grupo07 (OBRIGATÓRIO)")
     parser.add_argument("--file", choices=FILES, default="small",
                         help="arquivo a baixar (padrão: %(default)s)")
     parser.add_argument("--protocol", choices=PROTOCOLS, default="saw",
@@ -70,7 +72,7 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
 
     if args.group is None or not args.group.strip():
-        parser.error("--group é obrigatório (ex.: --group grupo01)")
+        parser.error("--group é obrigatório (ex.: --group grupo07)")
     if not GROUP_PATTERN.fullmatch(args.group):
         parser.error("--group deve conter apenas letras, números, '-' e '_'")
 
@@ -113,6 +115,11 @@ def main(argv=None):
     print(f"protocolo={config.protocol} janela={config.window} "
           f"segment_size={config.segment_size} loss={config.loss} "
           f"timeout={config.timeout_ms}ms")
+    if config.protocol != "saw":
+        print("apenas --protocol saw está implementado por enquanto",
+              file=sys.stderr)
+        return 1
+
     # O recvfrom devolve o IP do remetente; resolver o hostname aqui permite
     # comparar o endereço das respostas com o do servidor.
     try:
@@ -122,18 +129,28 @@ def main(argv=None):
               file=sys.stderr)
         return 1
 
+    # Mesmo socket no handshake e na transferência: o servidor associa a
+    # sessão ao endereço de origem do HELLO.
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        ok = handshake(sock, server_addr, config.group,
-                       config.file, config.segment_size, config.timeout_ms)
-    except HandshakeError as exc:
-        print(f"erro no handshake: {exc}", file=sys.stderr)
+        ok = handshake(sock, server_addr, config.group, config.file,
+                       config.segment_size, config.timeout_ms)
+        print(f"handshake OK | file_size={ok.file_size} "
+              f"total_segments={ok.total_segments} "
+              f"segment_size={ok.segment_size} checksum={ok.checksum} "
+              f"seed={ok.seed}")
+        result = download(sock, server_addr, ok.total_segments,
+                          config.timeout_ms)
+    except (HandshakeError, DownloadError) as exc:
+        print(f"erro: {exc}", file=sys.stderr)
         return 1
     finally:
         sock.close()
-    print(f"handshake OK | file_size={ok.file_size} "
-          f"total_segments={ok.total_segments} segment_size={ok.segment_size} "
-          f"checksum={ok.checksum} seed={ok.seed}")
-    print("Transferência ainda não implementada (próxima issue: loop "
-          "Stop-and-Wait).")
+
+    os.makedirs("data", exist_ok=True)
+    path = os.path.join("data", f"{config.file}.bin")
+    with open(path, "wb") as f:
+        f.write(result.content)
+    print(f"arquivo salvo em {path} ({len(result.content)} bytes, "
+          f"{result.retransmissions} retransmissões)")
     return 0

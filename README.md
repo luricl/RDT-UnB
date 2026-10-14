@@ -26,7 +26,7 @@ Python 3 (testado com 3.12). Só biblioteca padrão por enquanto.
 ## Como executar
 
 ```
-python3 cliente.py --server 137.131.178.229 --group grupo01 --file small
+python3 cliente.py --server 137.131.178.229 --group grupo07 --file small
 ```
 
 `--group` é obrigatório: sem ele o cliente encerra com erro.
@@ -35,7 +35,7 @@ python3 cliente.py --server 137.131.178.229 --group grupo01 --file small
 |---|---|---|
 | `--server` | IP ou hostname do servidor (obrigatório) | |
 | `--port` | porta UDP do servidor | `8080` |
-| `--group` | id do grupo, ex.: `grupo01` (obrigatório) | |
+| `--group` | id do grupo, ex.: `grupo07` (obrigatório) | |
 | `--file` | `small`, `medium` ou `large` | `small` |
 | `--protocol` | `saw`, `gbn` ou `sr` | `saw` |
 | `--window` | tamanho da janela (gbn/sr); `saw` usa sempre 1 | `4` para gbn/sr |
