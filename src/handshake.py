@@ -23,9 +23,12 @@ def wait_for_ok(sock, server_addr, timeout_s):
     Devolve o `Ok` recebido, ou None se o prazo estourar sem um OK válido.
     """
     deadline = time.monotonic() + timeout_s
-    time_left = deadline
 
-    while time_left > 0:
+    while True:
+        time_left = deadline - time.monotonic()
+        if time_left <= 0:
+            return None
+        
         sock.settimeout(time_left)
         try:
             data, addr = sock.recvfrom(RECV_BUFFER)
@@ -34,18 +37,15 @@ def wait_for_ok(sock, server_addr, timeout_s):
 
         if addr != server_addr:
             continue
-        
+
         try:
             packet = parse(data)
         except PacketError:
             continue
-        
+
         if isinstance(packet, Ok):
             return packet
-        
-        time_left = deadline - time.monotonic()
 
-    return None
 
 def handshake(sock, server_addr, group, file, segment_size,
               timeout_ms, max_attempts=DEFAULT_MAX_ATTEMPTS):
