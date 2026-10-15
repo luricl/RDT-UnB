@@ -45,6 +45,27 @@ python3 cliente.py --server 137.131.178.229 --group grupo07 --file small
 
 `python3 cliente.py --help` mostra todas as opções.
 
+## Métricas (CSV)
+
+Ao fim de cada sessão — com sucesso ou com erro — o cliente grava
+`results/metrics_<grupo>_<protocolo>_<YYYYMMDD_HHMMSS>.csv`, com uma linha por
+segmento recebido. O horário do nome é o início da sessão.
+
+| Coluna | Significado |
+|---|---|
+| `segment` | número de sequência |
+| `timestamp` | chegada do DATA, ISO 8601 com fuso, relógio do sistema (o mesmo do Wireshark) |
+| `size_bytes` | tamanho do payload |
+| `rtt_ms` | último REQ enviado → DATA recebido |
+| `rtt_estimated_ms` | EstimatedRTT por EWMA (α = 0,125); só amostras sem retransmissão entram (Karn); vazio até a primeira amostra |
+| `timeout_ms` | timeout em vigor para o segmento |
+| `throughput_kbps` | `size_bytes * 8 / tempo total do segmento`, em kbit/s; o tempo inclui timeouts, então perdas derrubam a vazão |
+| `retransmissions` | REQs reenviados |
+| `timeout_occurred` | 1 se houve timeout, senão 0 |
+| `window_size` | 1 no SAW |
+| `protocol` | `saw`, `gbn` ou `sr` |
+| `loss_simulated` | 1 se alguma perda do segmento foi simulada pelo cliente (`--loss`), senão 0 |
+
 ## Testes
 
 ```

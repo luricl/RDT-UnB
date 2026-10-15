@@ -5,13 +5,22 @@ import time
 from dataclasses import dataclass
 
 from src.packets import Data, PacketError, build_ack, build_req, parse
+from src.rtt import RttEstimator
 
 DEFAULT_MAX_RETRIES = 10
 RECV_BUFFER = 65535
 
 
 class DownloadError(Exception):
-    """A transferência não pôde ser concluída."""
+    """A transferência não pôde ser concluída.
+
+    `segments` guarda as métricas dos segmentos recebidos antes da falha, para
+    que o CSV da sessão seja gravado mesmo quando o download não termina.
+    """
+
+    def __init__(self, message, segments=()):
+        super().__init__(message)
+        self.segments = list(segments)
 
 
 @dataclass(frozen=True)
@@ -22,10 +31,26 @@ class SegmentStats:
     size_bytes: int
     rtt_ms: float          # do último REQ enviado até o DATA
     retransmissions: int   # REQs reenviados por timeout
+    rtt_estimated_ms: float = None  # EWMA após este segmento (None: sem amostra)
+    timeout_ms: float = None        # timeout em vigor para este segmento
+    elapsed_ms: float = None        # do primeiro REQ até o DATA (inclui timeouts)
+    loss_simulated: bool = False    # alguma perda deste segmento foi simulada
 
     @property
     def timeout_occurred(self):
         return self.retransmissions > 0
+
+    @property
+    def throughput_kbps(self):
+        """Vazão do segmento em kbit/s: bits do payload / tempo total gasto.
+
+        Usa `elapsed_ms` (que inclui timeouts) para que perdas apareçam como
+        queda de vazão. bits/ms equivale a kbit/s (k = 1000).
+        """
+        elapsed = self.elapsed_ms if self.elapsed_ms is not None else self.rtt_ms
+        if not elapsed or elapsed <= 0:
+            return None
+        return self.size_bytes * 8 / elapsed
 
 
 @dataclass(frozen=True)
@@ -72,9 +97,11 @@ def download(sock, server_addr, total_segments, timeout_ms,
     """Baixa todos os segmentos em Stop-and-Wait e remonta o arquivo."""
     payloads = []
     stats = []
+    estimator = RttEstimator()
 
     for seq in range(total_segments):
         req = build_req(seq)
+        first_sent_at = time.monotonic()
         for attempt in range(max_retries + 1):
             sock.sendto(req, server_addr)
             sent_at = time.monotonic()
@@ -83,14 +110,23 @@ def download(sock, server_addr, total_segments, timeout_ms,
                 break
         else:
             raise DownloadError(
-                f"segmento {seq}: sem resposta após {max_retries} retransmissões")
+                f"segmento {seq}: sem resposta após {max_retries} retransmissões",
+                segments=stats)
 
+        now = time.monotonic()
         # RTT medido a partir do último REQ: com retransmissão não dá para
         # saber a qual REQ o DATA responde (algoritmo de Karn).
-        rtt_ms = (time.monotonic() - sent_at) * 1000
+        rtt_ms = (now - sent_at) * 1000
+        # Pelo mesmo motivo (Karn), só amostras sem retransmissão alimentam a
+        # estimativa EWMA; nas outras a estimativa anterior é mantida.
+        if attempt == 0:
+            estimator.update(rtt_ms)
         stats.append(SegmentStats(seq=seq, received_at=time.time(),
                                   size_bytes=len(data.payload), rtt_ms=rtt_ms,
-                                  retransmissions=attempt))
+                                  retransmissions=attempt,
+                                  rtt_estimated_ms=estimator.estimated_ms,
+                                  timeout_ms=timeout_ms,
+                                  elapsed_ms=(now - first_sent_at) * 1000))
         payloads.append(data.payload)
         sock.sendto(build_ack(seq), server_addr)
 

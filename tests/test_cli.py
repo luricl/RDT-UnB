@@ -9,6 +9,7 @@ import threading
 import unittest
 
 from src.cli import DEFAULT_GBN_SR_WINDOW, parse_args
+from src.metrics import COLUMNS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = ["--server", "137.131.178.229", "--group", "grupo07"]
@@ -116,10 +117,18 @@ class EntryPointTest(unittest.TestCase):
     def run_cliente(self, *args):
         # Roda em diretório temporário para não sobrescrever data/ do repositório.
         with tempfile.TemporaryDirectory() as cwd:
-            return subprocess.run(
+            result = subprocess.run(
                 [sys.executable, os.path.join(ROOT, "cliente.py"), *args],
                 cwd=cwd, capture_output=True, text=True, timeout=30,
             )
+            results_dir = os.path.join(cwd, "results")
+            result.metrics = {}
+            if os.path.isdir(results_dir):
+                for name in os.listdir(results_dir):
+                    with open(os.path.join(results_dir, name),
+                              encoding="utf-8") as f:
+                        result.metrics[name] = f.read()
+            return result
 
     def test_starts_with_group(self):
         server = FakeServer()
@@ -129,6 +138,24 @@ class EntryPointTest(unittest.TestCase):
             "--group", "grupo07", "--file", "small")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("grupo=grupo07", result.stdout)
+
+    def test_writes_metrics_csv_at_end_of_session(self):
+        server = FakeServer()
+        self.addCleanup(server.sock.close)
+        result = self.run_cliente(
+            "--server", "127.0.0.1", "--port", str(server.port),
+            "--group", "grupo07", "--file", "small")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(result.metrics), 1)
+        name, content = next(iter(result.metrics.items()))
+        self.assertRegex(name, r"^metrics_grupo07_saw_\d{8}_\d{6}\.csv$")
+        lines = content.splitlines()
+        self.assertEqual(lines[0].split(","), list(COLUMNS))
+        self.assertEqual(len(lines), 2)  # cabeçalho + 1 segmento
+        row = dict(zip(lines[0].split(","), lines[1].split(",")))
+        self.assertEqual(row["window_size"], "1")
+        self.assertEqual(row["protocol"], "saw")
+        self.assertIn("métricas salvas em", result.stdout)
 
     def test_exits_with_error_without_group(self):
         result = self.run_cliente("--server", "137.131.178.229", "--file", "small")
