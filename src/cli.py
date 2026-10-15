@@ -147,9 +147,12 @@ def main(argv=None):
               f"seed={ok.seed}")
         result = download(sock, server_addr, ok.total_segments,
                           config.timeout_ms)
+        segments = result.segments
         end = finish(sock, server_addr, result.content, ok.checksum,
                      config.timeout_ms)
     except (HandshakeError, DownloadError, FinishError) as exc:
+        if isinstance(exc, DownloadError):
+            segments = exc.segments
         print(f"erro: {exc}", file=sys.stderr)
         return 1
     finally:
