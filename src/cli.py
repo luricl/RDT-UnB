@@ -6,9 +6,11 @@ import re
 import socket
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 
 from src.finish import FinishError, finish
 from src.handshake import HandshakeError, handshake
+from src.metrics import write_metrics
 from src.saw import DownloadError, download
 
 DEFAULT_PORT = 8080
@@ -130,6 +132,9 @@ def main(argv=None):
               file=sys.stderr)
         return 1
 
+    # Horário de início da sessão: compõe o nome do CSV de métricas.
+    started_at = datetime.now()
+    segments = []
     # Mesmo socket no handshake e na transferência: o servidor associa a
     # sessão ao endereço de origem do HELLO.
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -142,13 +147,20 @@ def main(argv=None):
               f"seed={ok.seed}")
         result = download(sock, server_addr, ok.total_segments,
                           config.timeout_ms)
+        segments = result.segments
         end = finish(sock, server_addr, result.content, ok.checksum,
                      config.timeout_ms)
     except (HandshakeError, DownloadError, FinishError) as exc:
+        if isinstance(exc, DownloadError):
+            segments = exc.segments
         print(f"erro: {exc}", file=sys.stderr)
         return 1
     finally:
         sock.close()
+        # Executa em sucesso e em erro: toda sessão gera seu CSV.
+        metrics_path = write_metrics(segments, config.group, config.protocol,
+                                     config.window, started_at)
+        print(f"métricas salvas em {metrics_path} ({len(segments)} segmentos)")
 
     os.makedirs("data", exist_ok=True)
     path = os.path.join("data", f"{config.file}.bin")
