@@ -92,8 +92,10 @@ class FakeServer:
     """Servidor UDP em localhost que serve um arquivo de um único segmento."""
 
     REPLIES = {
-        b"HELLO": b"OK|file_size=4|checksum=x|seed=s|total_segments=1|segment_size=4",
+        b"HELLO": b"OK|file_size=4|checksum=e2fc714c4727ee9395f324cd2e7f331f"
+                  b"|seed=s|total_segments=1|segment_size=4",
         b"REQ": b"DATA|seq=0|total=4|abcd",
+        b"FIN": b"DONE|ok=1",
     }
 
     def __init__(self):
@@ -138,6 +140,7 @@ class EntryPointTest(unittest.TestCase):
             "--group", "grupo07", "--file", "small")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("grupo=grupo07", result.stdout)
+        self.assertIn("DONE ok=1", result.stdout)
 
     def test_writes_metrics_csv_at_end_of_session(self):
         server = FakeServer()
