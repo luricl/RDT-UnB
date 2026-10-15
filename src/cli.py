@@ -7,6 +7,7 @@ import socket
 import sys
 from dataclasses import dataclass
 
+from src.finish import FinishError, finish
 from src.handshake import HandshakeError, handshake
 from src.saw import DownloadError, download
 
@@ -141,7 +142,9 @@ def main(argv=None):
               f"seed={ok.seed}")
         result = download(sock, server_addr, ok.total_segments,
                           config.timeout_ms)
-    except (HandshakeError, DownloadError) as exc:
+        end = finish(sock, server_addr, result.content, ok.checksum,
+                     config.timeout_ms)
+    except (HandshakeError, DownloadError, FinishError) as exc:
         print(f"erro: {exc}", file=sys.stderr)
         return 1
     finally:
@@ -153,4 +156,14 @@ def main(argv=None):
         f.write(result.content)
     print(f"arquivo salvo em {path} ({len(result.content)} bytes, "
           f"{result.retransmissions} retransmissões)")
+
+    print(f"MD5 calculado={end.md5} esperado={end.expected}")
+    if end.server_ok is None:
+        print("DONE não recebido; vale a verificação local")
+    else:
+        print(f"DONE ok={int(end.server_ok)}")
+    if not end.local_ok:
+        print("erro: MD5 do arquivo não confere", file=sys.stderr)
+        return 1
+    print("arquivo íntegro")
     return 0
