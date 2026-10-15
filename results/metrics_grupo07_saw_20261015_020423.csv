@@ -1,1 +1,0 @@
-segment,timestamp,size_bytes,rtt_ms,rtt_estimated_ms,timeout_ms,throughput_kbps,retransmissions,timeout_occurred,window_size,protocol,loss_simulated
