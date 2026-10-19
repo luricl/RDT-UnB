@@ -1,0 +1,319 @@
+% =====================================================================
+%  Relatório — Entrega 1 (Stop-and-Wait) — Projeto RDT-UnB — TR2 2026/2
+%  Limite: no máximo 5 páginas (confirmar com o professor se a capa conta;
+%  se contar, troque a capa por \capacompacta — ver abaixo).
+%  Trechos a preencher estão marcados com \preencher{...} (aparecem em
+%  vermelho no PDF). Busque por "preencher" para achar todos.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta}
+\usepackage[nottoc,numbib]{tocbibind} % numera a seção de referências
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+
+\graphicspath{{figuras/}}
+\addto\captionsbrazil{\renewcommand{\refname}{Referências bibliográficas}}
+\setlength{\emergencystretch}{3em} % evita linhas estouradas por nomes em \texttt
+
+% Marcador de conteúdo pendente (remova antes de entregar).
+\newcommand{\preencher}[1]{\textcolor{red}{[#1]}}
+
+% Figura que mostra um quadro de espaço reservado enquanto o arquivo não existe.
+% Uso: \figura{arquivo.png}{0.9\linewidth}{Legenda}{fig:rotulo}
+\newcommand{\figura}[4]{%
+  \begin{figure}[H]
+    \centering
+    \IfFileExists{figuras/#1}%
+      {\includegraphics[width=#2]{#1}}%
+      {\fbox{\parbox[c][4cm][c]{#2}{\centering\textcolor{red}{\ttfamily figuras/\detokenize{#1}}}}}%
+    \caption{#3}
+    \label{#4}
+  \end{figure}}
+
+% ---------------------------------------------------------------------
+\begin{document}
+
+% ======================= CAPA ========================================
+\begin{center}
+  {\large\textbf{Universidade de Brasília --- CIC0236 Teleinformática e Redes 2 --- 2026/2}}\\[0.5em]
+  {\Large\textbf{RDT-UnB: transferência confiável de dados sobre UDP com Stop-and-Wait --- Relatório da Entrega 1}}\\[0.5em]
+  Grupo \texttt{grupo07}: Lucas Adeodato de Oliveira (231013645), Lurian Correia Lima (222005395), Atila Sousa Fernandes (231013510)
+\end{center}
+
+% ======================= 1. INTRODUÇÃO ===============================
+\section{Introdução}
+
+O UDP não garante entrega, ordem nem integridade dos dados~\cite{rfc768}. Neste
+trabalho implementamos, sobre socket UDP nativo, o cliente do protocolo RDT-UnB~v1.0,
+que acrescenta confiabilidade à transferência de arquivos a partir dos mecanismos
+descritos nas Seções~3.4 e~3.5 de Kurose \& Ross~\cite{kurose}: números de sequência,
+reconhecimento (ACK), temporizador e retransmissão, e verificação de integridade por
+\textit{checksum} MD5~\cite{rfc1321}.
+
+Esta primeira entrega implementa o protocolo mais simples, o \textit{Stop-and-Wait}
+(SAW): o cliente solicita um segmento, espera o \texttt{DATA} correspondente, confirma
+com \texttt{ACK} e só então pede o próximo. Os três arquivos (\textit{small}, \textit{medium} e \textit{large}) foram recebidos
+com MD5 correto e o throughput medido ficou entre 99,4\% e 99,9\% do máximo teórico
+da Equação~\ref{eq:thr}, em torno de 140--156~kbps, valor determinado quase por completo pelo
+RTT de aproximadamente 26--30~ms.
+
+% ======================= 2. CLIENTE ==================================
+\section{Cliente implementado}
+
+\subsection{Protocolo e fluxo}
+
+O servidor é \textit{pull-based}: nunca envia dados sem ser solicitado. O cliente,
+executado como
+\begin{center}
+\texttt{python3 cliente.py -{}-server 137.131.178.229 -{}-group grupo07 -{}-file small}
+\end{center}
+segue o fluxo:
+\begin{enumerate}
+  \item \textbf{Handshake:} envia \texttt{HELLO|grupo=<id>|}\allowbreak\texttt{segment\_size=512|file=<arquivo>}
+        e recebe \texttt{OK} com \texttt{file\_size}, \texttt{checksum}, \texttt{seed},
+        \texttt{total\_segments} e o \texttt{segment\_size} negociado.
+  \item \textbf{Transferência:} para cada $n = 0,\dots,N-1$, envia \texttt{REQ|seq=$n$},
+        aguarda \texttt{DATA|seq=$n$|\dots} até o \textit{timeout} (retransmitindo o
+        \texttt{REQ} se ele expirar) e responde \texttt{ACK|seq=$n$}.
+  \item \textbf{Encerramento:} calcula o MD5 do arquivo remontado, envia
+        \texttt{FIN|checksum=<md5>} e recebe \texttt{DONE|ok=1} (íntegro) ou
+        \texttt{DONE|ok=0}.
+\end{enumerate}
+
+Decisões de implementação:
+\begin{itemize}
+  \item O \textit{timeout} é fixo em 1000~ms (\texttt{-{}-timeout}). O estimador de RTT
+        (EWMA) só alimenta a coluna \texttt{rtt\_estimated\_ms} nesta entrega.
+  \item No \texttt{DATA}, só as três primeiras barras \texttt{|} separam campos; o restante
+        é o \textit{payload} binário, que pode conter o byte \texttt{|}. O tamanho do
+        payload é conferido contra o campo \texttt{total}.
+  \item \texttt{DATA} duplicado, fora de ordem, malformado ou vindo de outro endereço é
+        descartado; o cliente continua esperando o \texttt{seq} corrente até o
+        \textit{timeout}.
+  \item Por timeout, o \texttt{REQ} é reenviado até 10 vezes por segmento; o \texttt{HELLO}
+        é enviado até 5 vezes e o \texttt{FIN} é retransmitido até 5 vezes. Esgotadas as tentativas, a
+        sessão falha, mas o CSV dos segmentos já recebidos é gravado.
+\end{itemize}
+
+\subsection{Máquina de estados}
+
+A Figura~\ref{fig:fsm} mostra a máquina de estados do cliente.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      ->, >={Stealth[round]}, node distance=3.2cm and 3.2cm, auto,
+      st/.style={draw, rounded corners, rectangle, minimum width=2.4cm,
+                 minimum height=0.9cm, align=center, font=\small\ttfamily, fill=blue!8},
+      err/.style={st, fill=red!10}, ok/.style={st, fill=green!12},
+      every node/.style={font=\scriptsize, align=center}]
+    \node[st, initial, initial text=]  (h) {HELLO\_SENT};
+    \node[st, right=of h]              (d) {WAIT\_DATA($n$)};
+    \node[st, right=of d]              (f) {FIN\_SENT};
+    \node[err, below=3.4cm of d]       (e) {ERRO};
+    \node[ok,  below=3.4cm of f]       (z) {FIM};
+
+    \path
+      (h) edge[loop above] node {timeout / reenvia \texttt{HELLO}\\(até 5 envios)} ()
+      (h) edge node[above, pos=0.5] {\texttt{OK} / $n \gets 0$;\\\texttt{REQ} 0} (d)
+      (h) edge node[left, pos=0.6]  {esgotou} (e)
+      (d) edge[loop above] node {timeout / reenvia \texttt{REQ} $n$\\(até 10 retransmissões)\\
+                                 \texttt{DATA} $\text{seq}\neq n$ / descarta} ()
+      (d) edge[loop below] node[below left, xshift=6mm] {\texttt{DATA} $\text{seq}=n$, $n<N-1$ /\\
+                                 \texttt{ACK} $n$; $n$++; \texttt{REQ} $n$} ()
+      (d) edge node[above, pos=0.5] {\texttt{DATA} $\text{seq}=N{-}1$ /\\\texttt{ACK}; MD5;\\envia \texttt{FIN}} (f)
+      (d.-15) edge node[right, pos=0.4] {esgotou} (e.75)
+      (f) edge[loop above] node {timeout / reenvia \texttt{FIN}\\(até 5 retransmissões)} ()
+      (f) edge node[above, sloped, pos=0.5] {esgotou} (e)
+      (f) edge node[right] {\texttt{DONE} ok=1 / íntegro\\\texttt{DONE} ok=0 / erro de MD5} (z);
+  \end{tikzpicture}
+  \caption{Máquina de estados do cliente Stop-and-Wait. Rótulos no formato
+           \textit{evento / ação}; $N$ é o \texttt{total\_segments} informado no \texttt{OK}.
+           Ao chegar em \texttt{FIM} ou \texttt{ERRO}, o CSV de métricas é gravado. Com
+           \texttt{DONE} ok=0 o cliente apenas reporta a falha de integridade; não refaz o download.}
+  \label{fig:fsm}
+\end{figure}
+
+\subsection{Métricas registradas}
+
+Ao fim de cada sessão o cliente grava \texttt{metrics\_<grupo>\_saw\_<timestamp>.csv},
+com uma linha por segmento e as colunas \texttt{segment}, \texttt{timestamp},
+\texttt{size\_bytes}, \texttt{rtt\_ms}, \texttt{rtt\_estimated\_ms}, \texttt{timeout\_ms},
+\texttt{throughput\_kbps}, \texttt{retransmissions}, \texttt{timeout\_occurred},
+\texttt{window\_size} (sempre 1) e \texttt{protocol} (\texttt{saw}).
+O RTT de um segmento é o tempo entre o envio do \texttt{REQ} e a chegada do
+\texttt{DATA} correspondente, e o throughput instantâneo é
+$\texttt{size\_bytes} \times 8 / \texttt{elapsed\_ms}$, em que \texttt{elapsed\_ms}
+é o tempo desde o primeiro \texttt{REQ} do segmento.
+Há uma sutileza no código: com retransmissão o RTT é medido a partir do \textit{último}
+\texttt{REQ} (não se sabe a qual \texttt{REQ} o \texttt{DATA} responde, como no algoritmo
+de Karn), então o \texttt{rtt\_ms} não inclui o tempo gasto nos timeouts. Já o throughput
+instantâneo usa o tempo desde o \textit{primeiro} \texttt{REQ}, de modo que um timeout
+aparece como queda de vazão. Em \texttt{rtt\_ms} aparece o RTT ``limpo'' e, no
+throughput, o custo total do segmento.
+
+% ======================= 3. RESULTADOS ===============================
+\section{Resultados}
+
+Os testes foram feitos com \texttt{segment\_size} de 512 bytes e timeout fixo
+de 1000~ms, contra o servidor \texttt{137.131.178.229}, em 15/10/2026 entre 10h22 e 10h41,
+sem perda simulada. Os CSVs foram registrados e utilizados para a geração dos gráficos.
+
+\subsection{Integridade dos arquivos recebidos}
+
+A Tabela~\ref{tab:md5} confirma, para os três arquivos, que o MD5 calculado pelo cliente
+coincide com o informado no \texttt{OK} e que o servidor respondeu \texttt{DONE|ok=1}
+(captura do terminal na Figura~\ref{fig:terminal}). Os valores também conferem com
+\texttt{md5sum} sobre os arquivos salvos.
+
+\begin{table}[H]
+  \centering
+  \caption{Checksum MD5 dos arquivos recebidos.}
+  \label{tab:md5}
+  \small
+  \begin{tabular}{lrrlc}
+    \toprule
+    Arquivo & Tamanho (bytes) & Segmentos & MD5 do arquivo recebido & \texttt{DONE} \\
+    \midrule
+    small  &  1\,048\,576 &  2\,048 & \texttt{\scriptsize 317d6890df9867ccda199afe6a362aba} & ok=1 \\
+    medium &  5\,242\,880 & 10\,240 & \texttt{\scriptsize 69e62b40de4415285dffbecf2b494644} & ok=1 \\
+    large  & 10\,485\,760 & 20\,480 & \texttt{\scriptsize 22473c90e995d0eff6ff8006d17de17c} & ok=1 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\figura{fig_terminal.png}{0.85\linewidth}
+  {Saída do terminal para os três arquivos; o MD5 calculado coincide com o esperado e o servidor
+   responde \texttt{DONE|ok=1}.}
+  {fig:terminal}
+
+\subsection{Throughput e RTT por segmento}
+
+\figura{fig_large.png}{0.85\linewidth}
+  {Throughput instantâneo (topo) e RTT (base) por segmento na transferência do arquivo
+   \textit{large} (20\,480 segmentos). Os pontos pretos marcam os 3 segmentos com timeout e
+   retransmissão; a curva grossa é a média móvel de 409 segmentos.}
+  {fig:segmentos}
+
+No \textit{large}, o RTT típico fica perto do mínimo, de 24--26~ms (mediana de 26,05~ms,
+média de 29,8~ms), com picos isolados de 100 a 210~ms, concentrados em alguns trechos
+(início, perto dos segmentos 11\,000 e entre 12\,000 e 15\,000). O throughput é a imagem
+espelhada do RTT: fica em torno de 150--160~kbps quando o RTT está perto de 26~ms e
+cai no mesmo segmento em que o RTT sobe (um RTT de 200~ms dá apenas 20~kbps). Os
+3 timeouts (segmentos 5379, 6277 e 12\,513) não coincidem com picos de RTT, são perdas
+de pacote. Em cada um deles o segmento custou cerca de 1,03~s, mas o gráfico mostra um RTT
+normal porque o \texttt{rtt\_ms} é medido a partir do último \texttt{REQ}. A
+Figura~\ref{fig:janelas} mostra o throughput em janelas de 10~s para os três arquivos:
+as quedas aparecem como episódios de alguns segundos com RTT alto, também nos arquivos
+\textit{small} e \textit{medium}.
+
+\figura{fig_janelas.png}{0.75\linewidth}
+  {Throughput médio em janelas de 10~s nas três execuções; as regiões sombreadas são
+   episódios de RTT alto e os triângulos, timeouts.}
+  {fig:janelas}
+
+\subsection{Throughput teórico e medido}
+
+O throughput máximo teórico do SAW é
+\begin{equation}
+  \text{Throughput}_{\text{máx}} = \frac{\texttt{segment\_size} \times 8}{\text{RTT}_{\text{médio}}},
+  \label{eq:thr}
+\end{equation}
+e o throughput medido é o total de bytes recebidos multiplicado por 8 e dividido pelo
+tempo total da transferência (do primeiro \texttt{REQ} ao último \texttt{DATA}). Nessa
+definição, os timeouts entram no tempo total. O RTT médio é a média da coluna
+\texttt{rtt\_ms} do CSV.
+
+\begin{table}[H]
+  \centering
+  \caption{Throughput teórico (Eq.~\ref{eq:thr}) e medido para os três arquivos.}
+  \label{tab:throughput}
+  \small
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Arquivo & RTT médio & Teórico & Medido & Medido/ & Retrans- & Tempo \\
+            & (ms)      & (kbps)  & (kbps) & teórico & missões  & total (s) \\
+    \midrule
+    small  & 26,24 & 156,1 & 155,9 & 99,9 & 0 &  53,8 \\
+    medium & 28,27 & 144,9 & 144,2 & 99,5 & 1 & 290,7 \\
+    large  & 29,84 & 137,3 & 136,4 & 99,4 & 3 & 614,8 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ======================= 4. ANÁLISE ==================================
+\section{Análise}
+
+\subsection*{(a) Por que o throughput do SAW é limitado pelo RTT?}
+
+No SAW há no máximo um segmento em trânsito: o cliente só pede o segmento $n+1$ depois
+de receber o $n$. Cada segmento custa, portanto, pelo menos um RTT, e o número de
+segmentos por segundo é no máximo $1/\text{RTT}$, qualquer que seja a capacidade do
+enlace. Com 512 bytes por segmento e RTT de $\approx 26$~ms, o limite é
+$\approx 38$ segmentos/s, ou $\approx 156$~kbps. Para a utilização do emissor
+$U = (L/R)/(\text{RTT} + L/R)$~\cite{kurose}, usando como exemplo um enlace de
+$R=100$~Mbps (valor assumido, não medido), $L/R = 4096/10^8 \approx 0{,}04$~ms e
+$U \approx 0{,}04/26{,}3 \approx 0{,}16\%$: o canal fica ocioso durante praticamente todo o
+tempo. Aumentar a largura de banda não ajuda; só reduzir o RTT ou ter mais de um segmento em
+trânsito (janela deslizante) aumenta a vazão. Os dados confirmam isso: o throughput por
+segmento acompanha $1/\text{RTT}$ (Figura~\ref{fig:segmentos}), com $\approx 160$~kbps para RTT
+de 25~ms e $\approx 20$~kbps nos segmentos com RTT de 200~ms, e o throughput médio muda de
+arquivo para arquivo na mesma proporção do RTT médio (156,1 contra 137,3~kbps quando o RTT médio sobe de
+26,2 para 29,8~ms).
+
+\subsection*{(b) Throughput teórico máximo $\times$ medido}
+
+Para o \textit{large}, a Equação~\ref{eq:thr} dá
+$512 \times 8 / 29{,}84 \approx 137{,}3$~kbps, e o medido foi
+$10\,485\,760 \times 8 / 614{,}8 \approx 136{,}4$~kbps, 99,4\% do teórico. No \textit{small}
+o RTT médio foi 26,24~ms (teórico 156,1~kbps, medido 155,9~kbps, 99,9\%) e no \textit{medium}
+28,27~ms (144,9 contra 144,2~kbps, 99,5\%). Os resultados do SAW ficam muito próximos do teórico porque a fórmula já
+usa o RTT médio medido e o cliente não faz nada além de esperar o RTT.
+
+A diferença restante vem dos timeouts. Como o \texttt{rtt\_ms} não inclui o tempo de timeout, o
+teórico não os enxerga, mas o tempo total de transferência sim: cada timeout custa o valor
+inteiro de 1000~ms. No \textit{large}, 3~timeouts somam 3~s de 614,8~s ($\approx 0{,}5\%$),
+que explica quase toda a diferença de 0,6\%; no \textit{medium}, 1~s de 290,7~s
+($\approx 0{,}3\%$); no \textit{small}, que não teve timeouts, sobram 0,1\%, do
+processamento do cliente (\textit{parsing}, montagem do ACK, registro das métricas), que ocorre fora da janela do RTT. A queda do
+throughput com o tamanho do arquivo se deve ao RTT médio mais alto nos arquivos maiores: os picos de RTT
+de 100--200~ms (Figura~\ref{fig:janelas}) puxam a média para cima e quanto mais longa a
+execução, mais episódios desses entram na média; e a cada
+timeout o tempo parado equivale a $\approx 1000/26 \approx 38$ segmentos. Isso
+mostra que, com timeout fixo de 1000~ms, bastam poucas perdas para custar vazão, e
+motiva o timeout adaptativo da próxima entrega.
+
+% ======================= 5. CONCLUSÃO ================================
+\section{Conclusão}
+
+O cliente recebeu os três arquivos íntegros (MD5 conferido e \texttt{DONE|ok=1}), com 0, 1
+e 3 retransmissões. O throughput medido ficou entre 99,4\% e 99,9\% do teórico, de
+136--156~kbps, bem abaixo da capacidade do enlace, pois o SAW fica limitado a um segmento por RTT.
+Isso motiva os protocolos de janela deslizante (GBN e SR) da Entrega~2.
+
+% ======================= REFERÊNCIAS =================================
+\begin{thebibliography}{9}
+  \bibitem{kurose}
+    J. F. Kurose e K. W. Ross, \textit{Computer Networking: A Top-Down Approach},
+    8th ed. Hoboken: Pearson, 2021.
+  \bibitem{rfc768}
+    J. Postel, ``User Datagram Protocol,'' RFC 768, IETF, 1980.
+    Disponível em: \url{https://www.rfc-editor.org/rfc/rfc768}.
+  \bibitem{rfc1321}
+    R. Rivest, ``The MD5 Message-Digest Algorithm,'' RFC 1321, IETF, 1992.
+    Disponível em: \url{https://www.rfc-editor.org/rfc/rfc1321}.
+\end{thebibliography}
+
+\end{document}
