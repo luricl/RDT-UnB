@@ -1,0 +1,70 @@
+% =====================================================================
+%  Relatório — Entrega 1 (Stop-and-Wait) — Projeto RDT-UnB — TR2 2026/2
+%  Limite: no máximo 5 páginas (confirmar com o professor se a capa conta;
+%  se contar, troque a capa por \capacompacta — ver abaixo).
+%  Trechos a preencher estão marcados com \preencher{...} (aparecem em
+%  vermelho no PDF). Busque por "preencher" para achar todos.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta}
+\usepackage[nottoc,numbib]{tocbibind} % numera a seção de referências
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+
+\graphicspath{{figuras/}}
+\addto\captionsbrazil{\renewcommand{\refname}{Referências bibliográficas}}
+\setlength{\emergencystretch}{3em} % evita linhas estouradas por nomes em \texttt
+
+% Marcador de conteúdo pendente (remova antes de entregar).
+\newcommand{\preencher}[1]{\textcolor{red}{[#1]}}
+
+% Figura que mostra um quadro de espaço reservado enquanto o arquivo não existe.
+% Uso: \figura{arquivo.png}{0.9\linewidth}{Legenda}{fig:rotulo}
+\newcommand{\figura}[4]{%
+  \begin{figure}[H]
+    \centering
+    \IfFileExists{figuras/#1}%
+      {\includegraphics[width=#2]{#1}}%
+      {\fbox{\parbox[c][4cm][c]{#2}{\centering\textcolor{red}{\ttfamily figuras/\detokenize{#1}}}}}%
+    \caption{#3}
+    \label{#4}
+  \end{figure}}
+
+% ---------------------------------------------------------------------
+\begin{document}
+
+% ======================= CAPA ========================================
+\begin{center}
+  {\large\textbf{Universidade de Brasília - CIC0236 Teleinformática e Redes 2 - 2026/2}}\\[0.5em]
+  {\Large\textbf{RDT-UnB: Janela Deslizante - GBN e SR - Relatório da Entrega 2}}\\[0.5em]
+  Grupo \texttt{grupo07}: Lucas Adeodato de Oliveira (231013645), Lurian Correia Lima (222005395), Atila Sousa Fernandes (231013510)
+\end{center}
+
+
+
+% ======================= REFERÊNCIAS =================================
+\begin{thebibliography}{9}
+  \bibitem{kurose}
+    J. F. Kurose e K. W. Ross, \textit{Computer Networking: A Top-Down Approach},
+    8th ed. Hoboken: Pearson, 2021.
+  \bibitem{rfc768}
+    J. Postel, ``User Datagram Protocol,'' RFC 768, IETF, 1980.
+    Disponível em: \url{https://www.rfc-editor.org/rfc/rfc768}.
+  \bibitem{rfc1321}
+    R. Rivest, ``The MD5 Message-Digest Algorithm,'' RFC 1321, IETF, 1992.
+    Disponível em: \url{https://www.rfc-editor.org/rfc/rfc1321}.
+\end{thebibliography}
+
+\end{document}
