@@ -36,6 +36,7 @@ class Config:
     window: int
     segment_size: int
     loss: float
+    seed: int
     timeout_ms: float
 
 
@@ -63,6 +64,9 @@ def build_parser():
     parser.add_argument("--loss", type=float, default=0.0,
                         help="probabilidade de perda simulada, de 0 a 1 "
                              "(padrão: %(default)s, desligada)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="seed do gerador de perda simulada, para "
+                             "experimentos reprodutíveis (padrão: %(default)s)")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_MS,
                         help="timeout de retransmissão em milissegundos "
                              "(padrão: %(default)s)")
@@ -107,6 +111,7 @@ def parse_args(argv=None):
         window=window,
         segment_size=args.segment_size,
         loss=args.loss,
+        seed=args.seed,
         timeout_ms=args.timeout,
     )
 
@@ -146,7 +151,8 @@ def main(argv=None):
               f"segment_size={ok.segment_size} checksum={ok.checksum} "
               f"seed={ok.seed}")
         result = download(sock, server_addr, ok.total_segments,
-                          config.timeout_ms)
+                          config.timeout_ms, loss=config.loss,
+                          seed=config.seed)
         segments = result.segments
         end = finish(sock, server_addr, result.content, ok.checksum,
                      config.timeout_ms)
