@@ -160,6 +160,21 @@ class EntryPointTest(unittest.TestCase):
         self.assertEqual(row["protocol"], "saw")
         self.assertIn("métricas salvas em", result.stdout)
 
+    def test_runs_selective_repeat(self):
+        server = FakeServer()
+        self.addCleanup(server.sock.close)
+        result = self.run_cliente(
+            "--server", "127.0.0.1", "--port", str(server.port),
+            "--group", "grupo07", "--protocol", "sr", "--window", "8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("DONE ok=1", result.stdout)
+        name, content = next(iter(result.metrics.items()))
+        self.assertRegex(name, r"^metrics_grupo07_sr_\d{8}_\d{6}\.csv$")
+        lines = content.splitlines()
+        row = dict(zip(lines[0].split(","), lines[1].split(",")))
+        self.assertEqual(row["window_size"], "8")
+        self.assertEqual(row["protocol"], "sr")
+
     def test_exits_with_error_without_group(self):
         result = self.run_cliente("--server", "137.131.178.229", "--file", "small")
         self.assertNotEqual(result.returncode, 0)

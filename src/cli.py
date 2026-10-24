@@ -11,7 +11,8 @@ from datetime import datetime
 from src.finish import FinishError, finish
 from src.handshake import HandshakeError, handshake
 from src.metrics import write_metrics
-from src.saw import DownloadError, download
+from src import saw, sr
+from src.saw import DownloadError
 
 DEFAULT_PORT = 8080
 DEFAULT_SEGMENT_SIZE = 512
@@ -123,8 +124,8 @@ def main(argv=None):
     print(f"protocolo={config.protocol} janela={config.window} "
           f"segment_size={config.segment_size} loss={config.loss} "
           f"timeout={config.timeout_ms}ms")
-    if config.protocol != "saw":
-        print("apenas --protocol saw está implementado por enquanto",
+    if config.protocol == "gbn":
+        print("--protocol gbn ainda não está implementado",
               file=sys.stderr)
         return 1
 
@@ -150,9 +151,14 @@ def main(argv=None):
               f"total_segments={ok.total_segments} "
               f"segment_size={ok.segment_size} checksum={ok.checksum} "
               f"seed={ok.seed}")
-        result = download(sock, server_addr, ok.total_segments,
-                          config.timeout_ms, loss=config.loss,
-                          seed=config.seed)
+        if config.protocol == "sr":
+            result = sr.download(sock, server_addr, ok.total_segments,
+                                 config.timeout_ms, config.window,
+                                 loss=config.loss, seed=config.seed)
+        else:
+            result = saw.download(sock, server_addr, ok.total_segments,
+                                  config.timeout_ms, loss=config.loss,
+                                  seed=config.seed)
         segments = result.segments
         end = finish(sock, server_addr, result.content, ok.checksum,
                      config.timeout_ms)
