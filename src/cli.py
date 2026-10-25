@@ -9,11 +9,10 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from src.finish import FinishError, finish
-from src.gbn import download as gbn_download
 from src.handshake import HandshakeError, handshake
 from src.metrics import write_metrics
-from src import saw, sr
-from src.saw import DownloadError, download as saw_download
+from src import saw, sr, gbn
+from src.packets import DownloadError
 
 DEFAULT_PORT = 8080
 DEFAULT_SEGMENT_SIZE = 512
@@ -153,11 +152,11 @@ def main(argv=None):
                                  config.timeout_ms, config.window,
                                  loss=config.loss, seed=config.seed)
         elif config.protocol == "gbn":
-            result = gbn_download(sock, server_addr, ok.total_segments,
+            result = gbn.download(sock, server_addr, ok.total_segments,
                                   config.timeout_ms, config.window,
                                   loss=config.loss, seed=config.seed)
         else:
-            result = saw_download(sock, server_addr, ok.total_segments,
+            result = saw.download(sock, server_addr, ok.total_segments,
                                   config.timeout_ms, loss=config.loss,
                                   seed=config.seed)
         segments = result.segments
