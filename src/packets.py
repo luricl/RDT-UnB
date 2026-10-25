@@ -169,3 +169,63 @@ def parse(packet):
         raise PacketError(f"tipo de pacote desconhecido: {kind[:20]!r}")
     fields = _fields(packet.split(SEP)[1:])
     return TEXT_PARSERS[kind](fields)
+
+# ---------------------------------------------------------------------------
+# Download
+# ---------------------------------------------------------------------------
+
+DEFAULT_MAX_RETRIES = 10
+RECV_BUFFER = 65535
+
+
+class DownloadError(Exception):
+    """A transferência não pôde ser concluída.
+
+    `segments` guarda as métricas dos segmentos recebidos antes da falha, para
+    que o CSV da sessão seja gravado mesmo quando o download não termina.
+    """
+
+    def __init__(self, message, segments=()):
+        super().__init__(message)
+        self.segments = list(segments)
+
+
+@dataclass(frozen=True)
+class SegmentStats:
+    """Métricas de um segmento, base de uma linha do CSV."""
+    seq: int
+    received_at: float     # time.time() na chegada do DATA (mesmo relógio do Wireshark)
+    size_bytes: int
+    rtt_ms: float          # do último REQ enviado até o DATA
+    retransmissions: int   # REQs reenviados por timeout
+    rtt_estimated_ms: float = None  # EWMA após este segmento (None: sem amostra)
+    timeout_ms: float = None        # timeout em vigor para este segmento
+    elapsed_ms: float = None        # do primeiro REQ até o DATA (inclui timeouts)
+    loss_simulated: bool = False    # alguma perda deste segmento foi simulada
+
+    @property
+    def timeout_occurred(self):
+        return self.retransmissions > 0
+
+    @property
+    def throughput_kbps(self):
+        """Vazão do segmento em kbit/s: bits do payload / tempo total gasto.
+
+        Usa `elapsed_ms` (que inclui timeouts) para que perdas apareçam como
+        queda de vazão. bits/ms equivale a kbit/s (k = 1000).
+        """
+        elapsed = self.elapsed_ms if self.elapsed_ms is not None else self.rtt_ms
+        if not elapsed or elapsed <= 0:
+            return None
+        return self.size_bytes * 8 / elapsed
+
+
+@dataclass(frozen=True)
+class Download:
+    content: bytes
+    segments: list
+
+    @property
+    def retransmissions(self):
+        return sum(s.retransmissions for s in self.segments)
+
