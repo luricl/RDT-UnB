@@ -9,10 +9,11 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from src.finish import FinishError, finish
+from src.gbn import download as gbn_download
 from src.handshake import HandshakeError, handshake
 from src.metrics import write_metrics
 from src import saw, sr
-from src.saw import DownloadError
+from src.saw import DownloadError, download as saw_download
 
 DEFAULT_PORT = 8080
 DEFAULT_SEGMENT_SIZE = 512
@@ -124,10 +125,6 @@ def main(argv=None):
     print(f"protocolo={config.protocol} janela={config.window} "
           f"segment_size={config.segment_size} loss={config.loss} "
           f"timeout={config.timeout_ms}ms")
-    if config.protocol == "gbn":
-        print("--protocol gbn ainda não está implementado",
-              file=sys.stderr)
-        return 1
 
     # O recvfrom devolve o IP do remetente; resolver o hostname aqui permite
     # comparar o endereço das respostas com o do servidor.
@@ -155,8 +152,12 @@ def main(argv=None):
             result = sr.download(sock, server_addr, ok.total_segments,
                                  config.timeout_ms, config.window,
                                  loss=config.loss, seed=config.seed)
+        elif config.protocol == "gbn":
+            result = gbn_download(sock, server_addr, ok.total_segments,
+                                  config.timeout_ms, config.window,
+                                  loss=config.loss, seed=config.seed)
         else:
-            result = saw.download(sock, server_addr, ok.total_segments,
+            result = saw_download(sock, server_addr, ok.total_segments,
                                   config.timeout_ms, loss=config.loss,
                                   seed=config.seed)
         segments = result.segments
