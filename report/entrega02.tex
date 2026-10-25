@@ -1,9 +1,11 @@
 % =====================================================================
-%  Relatório — Entrega 1 (Stop-and-Wait) — Projeto RDT-UnB — TR2 2026/2
-%  Limite: no máximo 5 páginas (confirmar com o professor se a capa conta;
-%  se contar, troque a capa por \capacompacta — ver abaixo).
-%  Trechos a preencher estão marcados com \preencher{...} (aparecem em
-%  vermelho no PDF). Busque por "preencher" para achar todos.
+%  Relatório — Entrega 2 (Janela deslizante: GBN e SR) — RDT-UnB — TR2 2026/2
+%  Limite: no máximo 8 páginas.
+%  Os números, tabelas e figuras vêm de report/gerado/ e report/figuras/,
+%  produzidos por:
+%     python scripts/entrega02_executa.py --server 137.131.178.229 --group grupo07
+%     python scripts/entrega02_analisa.py
+%  Trechos a preencher estão marcados com \preencher{...} (vermelho no PDF).
 % =====================================================================
 \documentclass[11pt,a4paper]{article}
 
@@ -42,23 +44,197 @@
     \label{#4}
   \end{figure}}
 
+% Peças geradas por scripts/entrega02_analisa.py (com fallback se ainda não existem).
+\newcommand{\gerado}[1]{\IfFileExists{gerado/#1}{\input{gerado/#1}}%
+  {\preencher{rodar scripts/entrega02\_analisa.py para gerar gerado/#1}}}
+\IfFileExists{gerado/dados.tex}{\input{gerado/dados.tex}}{%
+  \newcommand{\eArquivo}{\preencher{arquivo}}\newcommand{\eSegmentos}{\preencher{N}}%
+  \newcommand{\eTimeout}{1000}\newcommand{\eSeed}{42}%
+  \newcommand{\eQuando}{\preencher{data}}\newcommand{\eExecucoes}{21}%
+  \newcommand{\eExecucoesOk}{\preencher{n}}\newcommand{\eRttMediano}{\preencher{RTT}}}
+
+% Estilo das máquinas de estados.
+\tikzset{
+  fsm/.style={>=Stealth, auto, node distance=1.6cm and 3.4cm},
+  st/.style={draw, rounded corners, rectangle, minimum width=2.3cm,
+             minimum height=0.85cm, fill=blue!6, font=\small\ttfamily, align=center},
+  lbl/.style={font=\scriptsize, align=center},
+}
+
 % ---------------------------------------------------------------------
 \begin{document}
 
 % ======================= CAPA ========================================
 \begin{center}
-  {\large\textbf{Universidade de Brasília - CIC0236 Teleinformática e Redes 2 - 2026/2}}\\[0.5em]
-  {\Large\textbf{RDT-UnB: Janela Deslizante - GBN e SR - Relatório da Entrega 2}}\\[0.5em]
+  {\large\textbf{Universidade de Brasília --- CIC0236 Teleinformática e Redes 2 --- 2026/2}}\\[0.5em]
+  {\Large\textbf{RDT-UnB: janela deslizante com Go-Back-N e Selective Repeat --- Relatório da Entrega 2}}\\[0.5em]
   Grupo \texttt{grupo07}: Lucas Adeodato de Oliveira (231013645), Lurian Correia Lima (222005395), Atila Sousa Fernandes (231013510)
 \end{center}
 
+% ======================= 1. INTRODUÇÃO ===============================
+\section{Introdução}
 
+Na Entrega~1 mostramos que o Stop-and-Wait (SAW) é limitado pelo RTT: com um
+único segmento em trânsito, o cliente passa mais de 99\% do tempo esperando.
+Nesta entrega implementamos dois protocolos de janela deslizante (\emph{pipelining})
+sobre o mesmo protocolo RDT-UnB~v1.0 e o mesmo servidor \emph{pull-based}: o
+Go-Back-N (GBN) e o Selective Repeat (SR)~\cite{kurose}. Nos dois, o cliente
+mantém até $N$ \texttt{REQ}s enviados sem \texttt{DATA} de volta; eles diferem no
+tratamento de perdas e de segmentos fora de ordem. Comparamos SAW, GBN e SR com
+janelas de 4, 8 e 16, sem perda e com 5\% e 10\% de perda simulada.
 
-\section{Mecanismo de Perda}
+% ======================= 2. IMPLEMENTAÇÃO ============================
+\section{Implementação}
 
-Como mecanismo de perda, pois simula a perda do conteúdo útil (DATA), forçando diretamente o cliente a lidar com o timeout do REQ e a retransmissão.
+O cliente ganhou as opções \texttt{--protocol \{saw,gbn,sr\}}, \texttt{--window N},
+\texttt{--loss P} e \texttt{--seed S}. Handshake (\texttt{HELLO}/\texttt{OK}),
+encerramento (\texttt{FIN}/\texttt{DONE} com MD5) e o CSV de métricas são os
+mesmos da Entrega~1. Só o laço de transferência muda
+(\texttt{src/saw.py}, \texttt{src/gbn.py} e \texttt{src/sr.py}). Como o servidor
+só envia \texttt{DATA} quando recebe \texttt{REQ}, a "janela" é a de pedidos: o
+cliente faz o papel de emissor (decide o que pedir e quando reenviar) e também de
+receptor (aceita, descarta ou guarda os \texttt{DATA}). O timeout é fixo, como no
+SAW, e o \texttt{ACK|seq=n} é enviado assim que o \texttt{DATA} $n$ é aceito.
 
-Para cada DATA que chega e corresponde ao seq esperado, o cliente sorteia um número com um gerador random.Random(seed) semeado pela flag --seed. Se esse número for menor que a probabilidade P (--loss), o pacote é tratado como se tivesse se perdido na rede: é descartado silenciosamente e o cliente continua esperando, dentro do mesmo timeout já em curso. Cada segmento acumula, ao longo de suas tentativas, uma marca booleana sempre que uma dessas perdas é sorteada; no CSV final, o campo loss_simulated vale 1 se pelo menos uma tentativa daquele segmento sofreu descarte simulado, e 0 caso contrário
+\subsection{Go-Back-N}
+
+O cliente guarda \texttt{base} (segmento mais antigo sem \texttt{DATA}) e
+\texttt{next} (próximo a pedir) e mantém a janela cheia, com
+$\texttt{next} - \texttt{base} \le N$. O receptor só aceita o \texttt{DATA} da
+\texttt{base}: qualquer outro (fora de ordem, atrasado ou duplicado) é
+descartado. Há um único temporizador, o da \texttt{base}, contado a partir do
+último \texttt{REQ} dela. Quando ele vence, o cliente reenvia \textbf{todos} os
+\texttt{REQ}s de \texttt{base} até \texttt{next}$-1$ e soma 1 à coluna
+\texttt{retransmissions} de cada um (Figura~\ref{fig:fsm-gbn}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[fsm]
+  \node[st] (hs) {HELLO\_SENT};
+  \node[st, right=of hs, minimum width=3.6cm] (w) {JANELA\\{\scriptsize $[\mathtt{base},\,\mathtt{next})$}};
+  \node[st, right=of w] (fin) {FIN\_SENT};
+  \draw[->] (hs) -- node[lbl, above] {OK / base$\leftarrow$next$\leftarrow$0} (w);
+  \draw[->] (w) -- node[lbl, above] {base $=$ total /\\MD5, envia FIN} (fin);
+  \draw[->] (w) edge[loop above, looseness=4] node[lbl, align=left]
+    {next $<$ base$+N$ / REQ next, next$+{+}$\\
+     DATA seq$=$base / ACK, guarda, base$+{+}$} (w);
+  \draw[->] (w) edge[loop below, looseness=4] node[lbl, align=left]
+    {DATA seq$\neq$base / \textbf{descarta}\\
+     timeout(base) / \textbf{reenvia REQ base \dots\ next$-1$}} (w);
+\end{tikzpicture}
+\caption{Máquina de estados do cliente GBN (rótulos \emph{evento / ação}).
+Esgotadas 10 retransmissões da mesma base, a sessão termina com erro.}
+\label{fig:fsm-gbn}
+\end{figure}
+
+\subsection{Selective Repeat}
+
+O SR mantém a mesma janela de pedidos, mas cada segmento pendente tem o
+\textbf{próprio} temporizador. Um \texttt{DATA} de qualquer segmento pendente é
+aceito, confirmado com \texttt{ACK} e guardado num \emph{buffer} indexado por
+\texttt{seq}, mesmo que chegue fora de ordem. A \texttt{base} desliza por cima
+de todos os segmentos consecutivos já presentes no \emph{buffer}, liberando
+espaço na janela para novos pedidos. Quando o temporizador de um segmento vence,
+\textbf{só} o \texttt{REQ} daquele segmento é reenviado. \texttt{DATA} de
+segmento que já não está pendente (duplicata) é descartado. Ao final, o arquivo
+é remontado concatenando o \emph{buffer} em ordem de \texttt{seq}
+(Figura~\ref{fig:fsm-sr}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[fsm]
+  \node[st] (hs) {HELLO\_SENT};
+  \node[st, right=of hs, minimum width=3.6cm] (w) {JANELA\\{\scriptsize pendentes + buffer}};
+  \node[st, right=of w] (fin) {FIN\_SENT};
+  \draw[->] (hs) -- node[lbl, above] {OK / base$\leftarrow$next$\leftarrow$0} (w);
+  \draw[->] (w) -- node[lbl, above] {base $=$ total / remonta,\\MD5, envia FIN} (fin);
+  \draw[->] (w) edge[loop above, looseness=4] node[lbl, align=left]
+    {next $<$ base$+N$ / REQ next, inicia timer(next), next$+{+}$\\
+     DATA seq$=i$ pendente / ACK $i$, \textbf{buffer}[$i$], desliza base} (w);
+  \draw[->] (w) edge[loop below, looseness=4] node[lbl, align=left]
+    {DATA de seq já recebido / descarta\\
+     timeout($i$) / \textbf{reenvia só REQ $i$}, reinicia timer($i$)} (w);
+\end{tikzpicture}
+\caption{Máquina de estados do cliente SR. Cada segmento pendente $i$ tem seu
+próprio temporizador; até 10 retransmissões por segmento.}
+\label{fig:fsm-sr}
+\end{figure}
+
+\subsection{Simulação de perda}
+
+Escolhemos a abordagem (a): \textbf{descartar o \texttt{DATA} recebido com
+probabilidade $P$} antes de processá-lo. O pacote chega do socket, mas o
+cliente sorteia um número com \texttt{random.Random(seed)} (opção
+\texttt{--seed}, padrão 42). Se o número for menor que $P$ (\texttt{--loss}), o
+\texttt{DATA} é ignorado como se tivesse se perdido na rede, e o segmento
+continua pendente até o timeout. Escolhemos descartar o \texttt{DATA}, e não o
+\texttt{ACK}, porque no RDT-UnB quem dispara a retransmissão é a falta do
+\texttt{DATA}: o servidor é \emph{pull-based} e não reenvia nada por conta
+própria, e o próprio \texttt{ACK} não é processado pelo servidor, que
+responde \texttt{ERROR|msg=tipo\_desconhecido\_ACK} a cada um. Assim, um
+\texttt{ACK} omitido não teria efeito nenhum sobre a transferência,
+enquanto um \texttt{DATA} descartado exercita exatamente o caminho de perda,
+timeout e retransmissão de cada protocolo. A semente fixa torna os cenários
+reproduzíveis.
+
+No CSV, a coluna \texttt{loss\_simulated} (o campo \emph{simulated\_loss} do
+enunciado) vale 1 se pelo menos um \texttt{DATA} daquele segmento foi descartado
+pela simulação e 0 caso contrário. Isso separa a perda simulada das
+retransmissões causadas por perda natural da rede: um segmento com
+\texttt{retransmissions}$>0$ e \texttt{loss\_simulated}$=0$ foi reenviado por
+perda real ou, no GBN, por ter sido arrastado pela retransmissão da janela. Na
+demonstração ao vivo, o cliente roda com \texttt{--loss 0} (padrão).
+
+% ======================= 3. METODOLOGIA ==============================
+\section{Metodologia}
+
+Os \eExecucoes{} cenários (SAW; GBN e SR com $N = 4$, 8 e 16; perdas de 0, 5 e
+10\%) foram executados contra o servidor \texttt{137.131.178.229:8080} em
+\eQuando, com o arquivo \eArquivo{} (\eSegmentos{} segmentos de 512\,B), timeout
+fixo de \eTimeout\,ms e semente \eSeed. O script
+\texttt{scripts/entrega02\_executa.py} roda os cenários em ordem intercalada
+(para cada perda, todos os protocolos), para que uma piora momentânea da rede
+não afete só um protocolo. O script \texttt{scripts/entrega02\_analisa.py} gera
+as tabelas e os gráficos a partir dos CSVs. O throughput médio é
+$\text{bytes recebidos} \times 8 / \text{tempo total}$, com o tempo medido do
+primeiro \texttt{REQ} até o último \texttt{DATA}. As retransmissões são a soma
+da coluna \texttt{retransmissions}.
+
+% ======================= 4. RESULTADOS ===============================
+\section{Resultados}
+
+\subsection{Integridade}
+
+\gerado{tabela_md5.tex}
+
+\subsection{Tabela comparativa}
+
+\gerado{tabela_comparativa.tex}
+
+\subsection{Gráficos}
+
+\figura{e2_janela_sem_perda.png}{0.72\linewidth}{Throughput médio sem perda em
+função do tamanho da janela, comparado ao ideal $N \times L/\mathrm{RTT}$. Sem
+perda, as curvas de GBN e SR praticamente se sobrepõem.}{fig:janela}
+
+\figura{e2_segmentos_w16_p10.png}{0.92\linewidth}{GBN e SR com janela 16 e 10\%
+de perda. Topo: throughput por segmento (coluna \texttt{throughput\_kbps},
+média móvel de 16 segmentos); um segmento retransmitido inclui o timeout no seu
+tempo. Abaixo: retransmissões por segmento. Os traços marcam os segmentos com
+perda simulada.}{fig:segmentos}
+
+% ======================= 5. ANÁLISE ==================================
+\section{Análise}
+
+\gerado{analise.tex}
+
+% ======================= 6. CONCLUSÃO ================================
+\section{Conclusão}
+
+GBN e SR receberam o arquivo íntegro em todos os cenários
+(\eExecucoesOk{}/\eExecucoes{} execuções com MD5 conferido e
+\texttt{DONE|ok=1}), o que confirma a remontagem correta mesmo com segmentos
+fora de ordem no SR. \gerado{conclusao.tex}
 
 % ======================= REFERÊNCIAS =================================
 \begin{thebibliography}{9}

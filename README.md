@@ -66,6 +66,25 @@ segmento recebido. O horário do nome é o início da sessão.
 | `protocol` | `saw`, `gbn` ou `sr` |
 | `loss_simulated` | 1 se alguma perda do segmento foi simulada pelo cliente (`--loss`), senão 0 |
 
+## Entrega 2: comparação SAW × GBN × SR
+
+Requer `pip install matplotlib`. Na raiz do repositório:
+
+```
+python scripts/entrega02_executa.py --server 137.131.178.229 --group grupo07
+python scripts/entrega02_analisa.py
+```
+
+O primeiro comando roda os 21 cenários (SAW; GBN e SR com janela 4, 8 e 16;
+perdas de 0, 5 e 10%) com o arquivo `small` e guarda CSVs, logs e
+`execucoes.json` em `results/entrega02/`. Se for interrompido, rode de novo:
+os cenários já concluídos são pulados. O segundo comando gera as tabelas, os
+gráficos e o texto da análise em `report/gerado/` e `report/figuras/`, usados
+por `report/entrega02.tex`.
+
+A perda simulada (`--loss P --seed S`) descarta cada `DATA` recebido com
+probabilidade P. Na demonstração ao vivo, rode sem `--loss`.
+
 ## Testes
 
 ```
