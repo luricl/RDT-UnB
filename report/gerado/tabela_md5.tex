@@ -1,0 +1,19 @@
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{llccc}
+\toprule
+Protocolo & Janela & Sem perda & 5\% & 10\% \\
+\midrule
+SAW & 1 & completo$^*$ (2048 seg.) & completo$^*$ (2048 seg.) & MD5 ok, \texttt{DONE ok=1} \\
+GBN & 4 & completo$^*$ (2048 seg.) & completo$^*$ (2048 seg.) & MD5 ok, \texttt{DONE ok=1} \\
+GBN & 8 & completo$^*$ (2048 seg.) & completo$^*$ (2048 seg.) & MD5 ok, \texttt{DONE ok=1} \\
+GBN & 16 & completo$^*$ (2048 seg.) & completo$^*$ (2048 seg.) & MD5 ok, \texttt{DONE ok=1} \\
+SR & 4 & completo$^*$ (2048 seg.) & MD5 ok, \texttt{DONE ok=1} & MD5 ok, \texttt{DONE ok=1} \\
+SR & 8 & completo$^*$ (2048 seg.) & MD5 ok, \texttt{DONE ok=1} & MD5 ok, \texttt{DONE ok=1} \\
+SR & 16 & completo$^*$ (2048 seg.) & MD5 ok, \texttt{DONE ok=1} & MD5 ok, \texttt{DONE ok=1} \\
+\bottomrule
+\end{tabular}
+\caption{Integridade dos arquivos recebidos. Todas as execuções com log preservado produziram o MD5 \texttt{317d6890df9867ccda199afe6a362aba}, igual ao \texttt{checksum} informado no \texttt{OK}. $^*$Em 11 cenários a saída do cliente (com o MD5) foi sobrescrita por uma reexecução posterior; o CSV registra o download completo de todos os segmentos.}
+\label{tab:md5}
+\end{table}

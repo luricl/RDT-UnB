@@ -211,8 +211,9 @@ def tabela_comparativa(data):
 
 
 def tabela_md5(data):
-    md5s = {d["run"].get("md5") for d in data.values()}
+    md5s = {d["run"].get("md5") for d in data.values()} - {None}
     esperado = {d["run"].get("md5_expected") for d in data.values()}
+    sem_log = sum(d["run"].get("md5") is None for d in data.values())
     linhas = [
         r"\begin{table}[H]", r"\centering", r"\footnotesize",
         r"\begin{tabular}{llccc}", r"\toprule",
@@ -226,17 +227,24 @@ def tabela_md5(data):
                 cells.append("---")
                 continue
             run = d["run"]
+            if run.get("md5") is None:
+                cells.append(rf"completo$^*$ ({d['segmentos']} seg.)")
+                continue
             ok = run.get("md5") == run.get("md5_expected")
             cells.append(("MD5 ok" if ok else "MD5 \\textbf{difere}")
                          + f", \\texttt{{DONE ok={run.get('done_ok')}}}")
         linhas.append(" & ".join(cells) + r" \\")
     unico = md5s.pop() if len(md5s) == 1 else None
-    legenda = (rf"Todas as execuções produziram o MD5 \texttt{{{unico}}}, igual ao "
-               r"\texttt{checksum} informado no \texttt{OK}"
+    legenda = (rf"Todas as execuções com log preservado produziram o MD5 "
+               rf"\texttt{{{unico}}}, igual ao \texttt{{checksum}} informado no \texttt{{OK}}"
                if unico and esperado == {unico}
                else r"MD5 calculado pelo cliente comparado ao \texttt{checksum} do \texttt{OK}")
     linhas += [r"\bottomrule", r"\end{tabular}",
-               rf"\caption{{Integridade dos arquivos recebidos. {legenda}.}}",
+               rf"\caption{{Integridade dos arquivos recebidos. {legenda}."
+               + (rf" $^*$Em {sem_log} cenários a saída do cliente (com o MD5) foi "
+                  r"sobrescrita por uma reexecução posterior; o CSV registra o "
+                  r"download completo de todos os segmentos." if sem_log else "")
+               + "}",
                r"\label{tab:md5}", r"\end{table}"]
     return "\n".join(linhas) + "\n"
 
@@ -265,18 +273,20 @@ def fig_janela(data, path):
     if rtt:
         ax.plot(xs, [w * 512 * 8 / rtt for w in xs], color=MUTED,
                 linestyle=(0, (4, 3)), linewidth=1.2,
-                label=r"ideal $N \times L / \mathrm{RTT}$")
+                label=r"ideal $N \times L / \mathrm{RTT}$ (RTT mediano do SAW)")
     estilo = {"gbn": dict(marker="o", markersize=7, linewidth=2.2),
               "sr": dict(marker="s", markersize=5, linewidth=1.4,
                          linestyle=(0, (5, 2)), markerfacecolor=SURFACE)}
     for p in ("gbn", "sr"):
         ys = [saw] + [get(data, p, w, 0.0, "throughput_kbps") for w in xs[1:]]
         ax.plot(xs, ys, color=COR[p], label=NOME[p], **estilo[p])
-        for x, y in zip(xs, ys):
-            if y and p == "sr":
+        for x, y in zip(xs[1:], ys[1:]):
+            if y:
                 ax.annotate(br(y, 0).replace("\\,", "."), (x, y),
-                            textcoords="offset points", xytext=(6, -12),
-                            fontsize=7, color=INK)
+                            textcoords="offset points",
+                            xytext=(6, -12) if p == "sr" else (-8, 8),
+                            ha="left" if p == "sr" else "right",
+                            fontsize=7, color=COR[p])
     ax.set_xscale("log", base=2)
     ax.set_xticks(xs)
     ax.set_xticklabels(["1 (SAW)", "4", "8", "16"])
@@ -365,8 +375,9 @@ def analise(data):
     ideal16 = 16 * 512 * 8 / rtt
     vmax = max(filter(None, [t(p, 16, 0.0) for p in ("gbn", "sr")]), default=None)
     out.append(
-        r"\par Sem perda, os dois protocolos se comportam igual: só há retransmissão "
-        r"quando algo se perde, então a diferença entre eles não aparece. Com $N$ "
+        r"\par Sem perda, GBN e SR executam o mesmo caminho (pedem, recebem em ordem "
+        r"e confirmam, sem retransmissões), então diferenças entre eles nessa coluna "
+        r"vêm das condições da rede em cada execução, e não do protocolo. Com $N$ "
         r"segmentos em trânsito, chegam até $N$ segmentos por RTT, e o teto ideal é "
         rf"$N \times L/\mathrm{{RTT}}$ (com RTT mediano de {br(rtt, 2)}\,ms, "
         rf"{br(4 * 4096 / rtt, 0)}, {br(8 * 4096 / rtt, 0)} e {br(ideal16, 0)}\,kbit/s "
@@ -388,10 +399,11 @@ def analise(data):
                      r"que a vazão \textbf{se aproxima da estabilização em "
                      r"$N \approx 16$}.")
         else:
-            concl = (r"Nos dados, o throughput \textbf{ainda cresce quase "
-                     r"linearmente até $N = 16$}: o produto banda $\times$ atraso "
-                     r"não foi atingido, e a estabilização só ocorreria com janelas "
-                     r"maiores.")
+            concl = (r"Nos dados, o throughput \textbf{não se estabilizou até "
+                     r"$N = 16$}: cada vez que a janela dobrou, a vazão ainda subiu "
+                     r"de forma expressiva, sinal de que o produto banda $\times$ "
+                     r"atraso do caminho não foi atingido. A estabilização só "
+                     r"ocorreria com janelas maiores.")
         if any(estab.values()):
             extra = (rf"A maior vazão medida ({br(vmax)}\,kbit/s) equivale a "
                      rf"$\approx {br(bdp, 1)}$ segmentos entregues por RTT "
@@ -400,11 +412,13 @@ def analise(data):
                      r"esperando na fila.")
         else:
             extra = (rf"A maior vazão medida ({br(vmax)}\,kbit/s) equivale a "
-                     rf"$\approx {br(bdp, 1)}$ segmentos entregues por RTT, ou seja, "
-                     r"praticamente a janela inteira em trânsito o tempo todo. A "
-                     r"estabilização ocorreria na janela em que "
-                     r"$N \times L/\mathrm{RTT}$ alcançasse a banda disponível.")
-        out.append(rf"\par {concl} {extra} (Figura~\ref{{fig:janela}}).")
+                     rf"$\approx {br(bdp, 1)}$ segmentos entregues por RTT mediano, "
+                     r"abaixo dos 16 da janela, porque parte do tempo a janela fica "
+                     r"parada esperando o \texttt{DATA} mais lento. A estabilização "
+                     r"ocorreria na janela em que $N \times L/\mathrm{RTT}$ alcançasse "
+                     r"a banda disponível.")
+        out.append(rf"\par {concl} {extra} Ver Figura~\ref{{fig:janela}}.")
+        out.append(ruido_sem_perda(data))
 
     # (b) retransmissões por erro, janela 16 e 10%
     out.append(r"\subsection*{(b) Retransmissões por erro com 10\% de perda e "
@@ -455,8 +469,8 @@ def analise(data):
         if None in (tg, ts_, rg, rs, dg, ds):
             continue
         linhas.append(
-            rf"com $N={w}$, o GBN fez {rg} retransmissões e levou {br(dg)}\,s "
-            rf"({br(tg)}\,kbit/s), contra {rs} retransmissões e {br(ds)}\,s "
+            rf"com $N={w}$, o GBN fez {br(rg, 0)} retransmissões e levou {br(dg)}\,s "
+            rf"({br(tg)}\,kbit/s), contra {br(rs, 0)} retransmissões e {br(ds)}\,s "
             rf"({br(ts_)}\,kbit/s) do SR")
     if linhas:
         out.append(r"Com 10\% de perda (Tabela~\ref{tab:comparativa}), " +
@@ -494,6 +508,44 @@ def analise(data):
     return "\n\n".join(out) + "\n"
 
 
+def ruido_sem_perda(data):
+    """Parágrafo sobre RTT por execução e perdas naturais nos cenários sem perda."""
+    itens, rtts, naturais = [], [], []
+    for p, w in CONFIGS:
+        d = data.get(name(p, w, 0.0))
+        if not d or not d["rtt_mediano_ms"]:
+            continue
+        ideal = w * 512 * 8 / d["rtt_mediano_ms"]
+        rtts.append(d["rtt_mediano_ms"])
+        itens.append(d["throughput_kbps"] / ideal)
+        if d["retransmissoes"]:
+            sem = d["tempo_s"] - d["eventos_timeout"] * d["run"]["timeout_ms"] / 1000
+            plural = d["eventos_timeout"] > 1
+            naturais.append(
+                rf"no {NOME[p]} com $N={w}$, {d['eventos_timeout']} "
+                rf"timeout{'s' if plural else ''} "
+                rf"({d['retransmissoes']} \texttt{{REQ}}s reenviados) "
+                rf"{'custaram' if plural else 'custou'} "
+                rf"$\approx {br(d['eventos_timeout'] * d['run']['timeout_ms'] / 1000, 0)}$\,s "
+                rf"de {br(d['tempo_s'])}\,s; sem {'eles' if plural else 'ele'}, a vazão seria "
+                rf"$\approx {br(d['bytes'] * 8 / sem / 1000, 0)}$\,kbit/s")
+    if not itens:
+        return ""
+    txt = (rf"\par Dois cuidados na leitura desses números. Primeiro, cada cenário "
+           rf"foi executado uma vez, e o RTT mediano variou de {br(min(rtts), 1)} a "
+           rf"{br(max(rtts), 1)}\,ms entre as execuções. Medida contra o ideal "
+           rf"$N \times L/\mathrm{{RTT}}$ da própria execução, a eficiência ficou "
+           rf"entre {pct(min(itens))} e {pct(max(itens))}, porque os picos de RTT "
+           r"seguram a janela e o \texttt{DATA} mais lento atrasa o deslizamento.")
+    if naturais:
+        txt += (r" Segundo, mesmo sem perda simulada houve \textbf{perda natural} na "
+                r"rede (retransmissões com \texttt{loss\_simulated}$=0$): "
+                + "; ".join(naturais)
+                + r". Numa transferência de poucos segundos, um único timeout de 1\,s "
+                  r"pesa muito na média.")
+    return txt
+
+
 def conclusao(data):
     t = lambda p, w, l: get(data, p, w, l, "throughput_kbps")  # noqa: E731
     partes = []
@@ -502,15 +554,19 @@ def conclusao(data):
         partes.append(
             rf"Sem perda, a janela deslizante eliminou o limite de um segmento por RTT "
             rf"do SAW: com $N=16$, GBN e SR chegaram a {br(g16)} e {br(s16)}\,kbit/s, "
-            rf"{br(g16 / saw0, 1)}$\times$ e {br(s16 / saw0, 1)}$\times$ o SAW, com "
-            r"desempenho equivalente entre si.")
+            rf"{br(g16 / saw0, 1)}$\times$ e {br(s16 / saw0, 1)}$\times$ o SAW"
+            + (r", com desempenho equivalente entre si."
+               if abs(g16 / s16 - 1) < 0.15 else
+               r". A diferença entre os dois sem perda veio das condições da rede "
+               r"em cada execução (perda natural e variação do RTT), e não do "
+               r"protocolo."))
     g10, s10 = t("gbn", 16, 0.10), t("sr", 16, 0.10)
     rg = get(data, "gbn", 16, 0.10, "retransmissoes")
     rs = get(data, "sr", 16, 0.10, "retransmissoes")
     if None not in (g10, s10, rg, rs):
         melhor = "SR" if s10 > g10 else "GBN"
         partes.append(
-            rf"Com 10\% de perda e $N=16$, o GBN fez {rg} retransmissões contra {rs} "
+            rf"Com 10\% de perda e $N=16$, o GBN fez {br(rg, 0)} retransmissões contra {br(rs, 0)} "
             rf"do SR, e o {melhor} teve a maior vazão ({br(max(g10, s10))} contra "
             rf"{br(min(g10, s10))}\,kbit/s): cada erro custa até $N$ reenvios no "
             r"GBN e um único reenvio no SR.")
@@ -533,7 +589,7 @@ def macros(data):
               else f"de {d0:%d/%m/%Y %H:%M} a {d1:%d/%m/%Y %H:%M}")
     r0 = runs[0]
     seg = next(iter(data.values()))["segmentos"]
-    ok = sum(1 for r in runs if r.get("md5") == r.get("md5_expected")
+    ok = sum(1 for r in runs if r.get("md5") and r.get("md5") == r.get("md5_expected")
              and r.get("done_ok") == 1)
     return "\n".join([
         rf"\newcommand{{\eArquivo}}{{\texttt{{{r0['arquivo']}}}}}",
