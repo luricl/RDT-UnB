@@ -68,8 +68,11 @@ def run(args, protocol, window, loss, out_dir):
 
     print(f"[{datetime.now():%H:%M:%S}] {name}: {' '.join(cmd[1:])}", flush=True)
     started = time.time()
+    # No Windows o cliente escreveria em cp1252 ("m\xe9tricas", "\xedntegro") e a
+    # leitura abaixo não reconheceria o resultado: força UTF-8 no filho.
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+                          encoding="utf-8", errors="replace", env=env)
     wall = time.time() - started
     output = proc.stdout + "\n--- stderr ---\n" + proc.stderr
 
@@ -133,7 +136,9 @@ def main():
     for protocol, window, loss in plan:
         name = scenario_name(protocol, window, loss)
         done = index.get(name)
-        if done and done["returncode"] == 0 and done.get("integro") and not args.force:
+        if done and not args.force and (
+                (done.get("returncode") == 0 and done.get("integro"))
+                or done.get("nota")):  # recuperado de uma sessão completa
             print(f"{name}: já executado com sucesso, pulando")
             continue
         index[name] = run(args, protocol, window, loss, out_dir)
@@ -142,7 +147,7 @@ def main():
                       indent=2, ensure_ascii=False)
 
     falhas = [r["cenario"] for r in index.values()
-              if r["returncode"] != 0 or not r.get("integro")]
+              if not r.get("nota") and (r["returncode"] != 0 or not r.get("integro"))]
     print(f"\n{len(index) - len(falhas)}/{len(index)} cenários OK.")
     if falhas:
         print("Com falha (rode de novo para refazer só estes):", ", ".join(falhas))

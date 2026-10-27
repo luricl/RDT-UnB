@@ -10,6 +10,7 @@
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[T1]{fontenc}
+\usepackage{lmodern}
 \usepackage[utf8]{inputenc}
 \usepackage[brazil]{babel}
 \usepackage[a4paper,margin=2.2cm]{geometry}
@@ -231,10 +232,10 @@ perda simulada.}{fig:segmentos}
 % ======================= 6. CONCLUSÃO ================================
 \section{Conclusão}
 
-GBN e SR receberam o arquivo íntegro em todos os cenários
-(\eExecucoesOk{}/\eExecucoes{} execuções com MD5 conferido e
-\texttt{DONE|ok=1}), o que confirma a remontagem correta mesmo com segmentos
-fora de ordem no SR. \gerado{conclusao.tex}
+Os \eExecucoes{} cenários terminaram com o arquivo completo, e em todas as
+\eExecucoesOk{} execuções com log preservado, de SAW, GBN e SR, o MD5 conferiu e
+o servidor respondeu \texttt{DONE|ok=1}. Isso confirma a remontagem correta
+mesmo com segmentos fora de ordem no SR. \gerado{conclusao.tex}
 
 % ======================= REFERÊNCIAS =================================
 \begin{thebibliography}{9}
