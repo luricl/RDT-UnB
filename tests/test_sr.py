@@ -112,6 +112,22 @@ class SrTest(unittest.TestCase):
         for s in lost:
             self.assertGreater(s.retransmissions, 0)
 
+    def test_fixed_timeout_by_default(self):
+        result = self.run_download(FakeServer())
+        self.assertEqual({s.timeout_ms for s in result.segments}, {100})
+
+    def test_adaptive_timeout_varies_and_skips_retransmitted(self):
+        server = FakeServer(drop={(1, 1)})
+        result = self.run_download(server, window=1, adaptive=True)
+        self.assertEqual(result.content, b"".join(SEGMENTS))
+        by_seq = {s.seq: s for s in result.segments}
+        self.assertEqual(by_seq[0].timeout_ms, 100)   # ainda sem amostra
+        later = [by_seq[i].timeout_ms for i in (2, 3, 4)]
+        self.assertTrue(all(t < 100 for t in later))  # RTT local << 100 ms
+        # Karn: o segmento retransmitido não altera a estimativa.
+        self.assertEqual(by_seq[1].retransmissions, 1)
+        self.assertEqual(by_seq[1].rtt_estimated_ms, by_seq[0].rtt_estimated_ms)
+
     def test_gives_up_after_max_retries(self):
         server = FakeServer(drop={(1, n) for n in range(1, 10)})
         with self.assertRaises(DownloadError) as ctx:
