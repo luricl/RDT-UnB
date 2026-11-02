@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Gera gráficos de throughput e RTT por segmento para cada CSV de métricas.
+"""Gera o gráfico de throughput e RTT por segmento de um CSV de métricas.
 
-Uso: python3 scripts/plot_metrics.py [diretorio_raiz]
-Para cada metrics_*.csv encontrado, salva um PNG com o mesmo nome na mesma pasta.
+Uso: python3 results/entrega01/graph_scripts/plot_metrics.py <metrics.csv>
+Salva um PNG com o mesmo nome do CSV, na mesma pasta.
 """
 import csv
 import sys
@@ -13,7 +13,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else "report/entrega01/execucoes")
 BLUE, ORANGE = "#2a6fbb", "#c4561a"
 INK, MUTED, GRID = "#222222", "#666666", "#e3e3e3"
 
@@ -73,5 +72,13 @@ def plot(csv_path):
     print(out)
 
 
-for p in sorted(ROOT.rglob("metrics_*.csv")):
-    plot(p)
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    path = Path(sys.argv[1])
+    if not path.is_file():
+        sys.exit(f"CSV não encontrado: {path}")
+    plot(path)
+
+
+main()

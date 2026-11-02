@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Gera o gráfico de throughput em janelas de 10 s ao longo das três execuções.
+"""Gera o gráfico de throughput em janelas de 10 s de um CSV de métricas.
 
-Uso: python3 results/entrega01/graph_scripts/plot_janelas.py [diretorio_raiz]
-Lê os metrics_*.csv de small, medium e large e salva janelas_10s.png no
-diretório raiz (padrão: results/entrega01/execucoes).
+Uso: python3 results/entrega01/graph_scripts/plot_janelas.py <metrics.csv>
+Salva <nome_do_csv>_janelas_10s.png na mesma pasta do CSV.
 """
 import csv
 import sys
@@ -16,12 +15,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
 
-ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else "results/entrega01/execucoes")
 WINDOW_S = 10
-COLORS = {"small": "#2a6fbb", "medium": "#3a9a5b", "large": "#c4561a"}
+BLUE = "#2a6fbb"
 INK, MUTED, GRID = "#222222", "#666666", "#e3e3e3"
-# Episódios de RTT alto discutidos no texto (horário local, 15/10/2026).
-EPISODES = [("10:29", "10:33"), ("10:35", "10:39")]
 # Fuso dos timestamps dos CSVs (Brasília).
 BRT = timezone(timedelta(hours=-3))
 
@@ -61,38 +57,38 @@ def style(ax):
     ax.tick_params(colors=MUTED, length=0)
 
 
-def main():
+def plot(path):
+    t, size, to = load(path)
+    day = datetime.fromtimestamp(t[0], BRT).date()
+    c, thr = windows(t, size)
     fig, ax = plt.subplots(figsize=(11, 4.6))
-    day = None
-    for name in ("small", "medium", "large"):
-        path = sorted(ROOT.glob(f"{name}/metrics_*.csv"))[0]
-        t, size, to = load(path)
-        day = datetime.fromtimestamp(t[0], BRT).date()
-        c, thr = windows(t, size)
-        ax.plot(c, thr, color=COLORS[name], linewidth=1.8, marker="o",
-                markersize=3, label=f"{name} ({len(t)} segmentos)")
-        if to.any():
-            ax.scatter(mpl_time(t[to]), np.full(to.sum(), 5), marker="v", s=36,
-                       color=INK, zorder=3,
-                       label="timeout" if name == "large" else None)
-    for a, b in EPISODES:
-        t0 = datetime.combine(day, datetime.strptime(a, "%H:%M").time(), BRT).timestamp()
-        t1 = datetime.combine(day, datetime.strptime(b, "%H:%M").time(), BRT).timestamp()
-        ax.axvspan(mpl_time(t0)[0], mpl_time(t1)[0],
-                   color=INK, alpha=0.06, linewidth=0)
+    ax.plot(c, thr, color=BLUE, linewidth=1.8, marker="o", markersize=3,
+            label=f"{path.stem} ({len(t)} segmentos)")
+    if to.any():
+        ax.scatter(mpl_time(t[to]), np.full(to.sum(), thr.max() * 0.03),
+                   marker="v", s=36, color=INK, zorder=3, label="timeout")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-    ax.set_xlabel("Horário (15/10/2026, relógio do sistema)", color=MUTED)
-    ax.set_ylim(0, 200)
+    ax.set_xlabel(f"Horário ({day:%d/%m/%Y}, relógio do sistema)", color=MUTED)
+    ax.set_ylim(0, thr.max() * 1.1)
     style(ax)
     ax.legend(frameon=False, fontsize=8, labelcolor=MUTED, loc="lower left",
               ncol=4)
-    ax.set_title(f"Throughput em janelas de {WINDOW_S} s (sombra: episódios "
-                 "de RTT alto)", color=INK, fontsize=11, loc="left")
+    ax.set_title(f"Throughput em janelas de {WINDOW_S} s", color=INK,
+                 fontsize=11, loc="left")
     fig.tight_layout()
-    out = ROOT / "janelas_10s.png"
+    out = path.with_name(f"{path.stem}_janelas_{WINDOW_S}s.png")
     fig.savefig(out, dpi=150)
     plt.close(fig)
     print(out)
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    path = Path(sys.argv[1])
+    if not path.is_file():
+        sys.exit(f"CSV não encontrado: {path}")
+    plot(path)
 
 
 main()
