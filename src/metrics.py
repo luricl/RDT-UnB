@@ -103,9 +103,20 @@ def summarize_metrics(path):
 
     # O CSV fica em ordem de segmento; a ordem de chegada é a do timestamp.
     by_arrival = sorted(rows, key=lambda r: datetime.fromisoformat(r["timestamp"]))
-    first = datetime.fromisoformat(by_arrival[0]["timestamp"])
-    last = datetime.fromisoformat(by_arrival[-1]["timestamp"])
-    duration_s = (last - first).total_seconds()
+
+    # Tempo total do 1º REQ ao último DATA, como em scripts/entrega02_analisa.py.
+    # O CSV não guarda o instante do REQ; ele é recuperado de cada segmento
+    # pela vazão: elapsed (ms) = size_bytes * 8 / throughput_kbps.
+    def first_req_s(r):
+        arrival = datetime.fromisoformat(r["timestamp"]).timestamp()
+        thr = float(r["throughput_kbps"]) if r["throughput_kbps"] else 0.0
+        elapsed_ms = (int(r["size_bytes"]) * 8 / thr if thr > 0
+                      else float(r["rtt_ms"]))
+        return arrival - elapsed_ms / 1000
+
+    start = min(first_req_s(r) for r in rows)
+    end = datetime.fromisoformat(by_arrival[-1]["timestamp"]).timestamp()
+    duration_s = end - start
 
     total_bytes = sum(int(r["size_bytes"]) for r in rows)
     rtts = [float(r["rtt_ms"]) for r in rows]
@@ -144,7 +155,7 @@ def format_summary(summary):
         f"segmentos recebidos:      {summary['segments']} "
         f"({summary['total_bytes']} bytes)",
         f"tempo total:              {num(summary['duration_s'], 's', 2)} "
-        "(do 1º ao último DATA)",
+        "(do 1º REQ ao último DATA)",
         f"vazão efetiva:            {num(summary['throughput_kbps'], 'kbps')} "
         "(bytes * 8 / tempo total)",
         f"vazão média por segmento: "

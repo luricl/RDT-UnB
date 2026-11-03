@@ -103,9 +103,11 @@ class SummaryTest(unittest.TestCase):
         summary = self.summarize(segments)
         self.assertEqual(summary["segments"], 3)
         self.assertEqual(summary["total_bytes"], 1280)
-        self.assertAlmostEqual(summary["duration_s"], 2.0, places=3)
-        # 1280 bytes * 8 / 2 s = 5.12 kbit/s
-        self.assertAlmostEqual(summary["throughput_kbps"], 5.12, places=3)
+        # Início = 1º REQ, recuperado pela vazão: o seg 1 chegou em t0 + 2 s
+        # após 2040 ms desde o 1º REQ, ou seja, o pedido foi em t0 - 0.04 s.
+        self.assertAlmostEqual(summary["duration_s"], 2.04, places=3)
+        # 1280 bytes * 8 / 2.04 s = 5.02 kbit/s
+        self.assertAlmostEqual(summary["throughput_kbps"], 5.0196, places=3)
         self.assertEqual(summary["retransmissions"], 2)
         self.assertEqual(summary["timeouts"], 1)
         self.assertEqual(summary["loss_simulated"], 1)
@@ -114,15 +116,14 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(summary["rtt_max_ms"], 40.0)
         # Estimativa final = a do último DATA a chegar (seg 1), não a do maior seq.
         self.assertEqual(summary["rtt_estimated_ms"], 20.0)
-        self.assertIn("vazão efetiva:            5.1 kbps (bytes * 8 / tempo total)",
+        self.assertIn("vazão efetiva:            5.0 kbps (bytes * 8 / tempo total)",
                       format_summary(summary))
 
-    def test_single_segment_has_no_effective_throughput(self):
+    def test_single_segment_duration_includes_its_request(self):
         summary = self.summarize([stat(0)])
-        self.assertEqual(summary["duration_s"], 0.0)
-        self.assertIsNone(summary["throughput_kbps"])
-        self.assertTrue(any(line.startswith("vazão efetiva:") and "-" in line
-                            for line in format_summary(summary)))
+        # 512 bytes em 20 ms: o tempo total é o do próprio segmento.
+        self.assertAlmostEqual(summary["duration_s"], 0.02, places=4)
+        self.assertAlmostEqual(summary["throughput_kbps"], 204.8, places=1)
 
     def test_empty_csv_has_no_summary(self):
         self.assertIsNone(self.summarize([]))
