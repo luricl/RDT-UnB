@@ -10,7 +10,7 @@ from datetime import datetime
 
 from src.finish import FinishError, finish
 from src.handshake import HandshakeError, handshake
-from src.metrics import write_metrics
+from src.metrics import format_summary, summarize_metrics, write_metrics
 from src import saw, sr, gbn
 from src.packets import DownloadError
 
@@ -173,6 +173,11 @@ def main(argv=None):
         metrics_path = write_metrics(segments, config.group, config.protocol,
                                      config.window, started_at)
         print(f"métricas salvas em {metrics_path} ({len(segments)} segmentos)")
+        summary = summarize_metrics(metrics_path)
+        if summary is not None:
+            print(f"--- resumo da sessão (lido de {metrics_path}) ---")
+            for line in format_summary(summary):
+                print(line)
 
     os.makedirs("data", exist_ok=True)
     path = os.path.join("data", f"{config.file}.bin")

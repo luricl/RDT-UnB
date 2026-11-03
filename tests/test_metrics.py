@@ -5,7 +5,8 @@ import time
 import unittest
 from datetime import datetime
 
-from src.metrics import COLUMNS, metrics_filename, write_metrics
+from src.metrics import (COLUMNS, format_summary, metrics_filename,
+                         summarize_metrics, write_metrics)
 from src.rtt import RttEstimator
 from src.saw import SegmentStats
 
@@ -73,6 +74,58 @@ class MetricsFileTest(unittest.TestCase):
     def test_missing_estimate_is_blank(self):
         _, rows = self.write([stat(0, rtt_estimated_ms=None)])
         self.assertEqual(dict(zip(rows[0], rows[1]))["rtt_estimated_ms"], "")
+
+
+class SummaryTest(unittest.TestCase):
+    def summarize(self, segments):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = write_metrics(segments, "grupo07", "sr", 4,
+                             datetime(2026, 10, 14, 21, 5, 9),
+                             directory=tmp.name)
+        return summarize_metrics(path)
+
+    def test_aggregates_come_from_csv(self):
+        t0 = 1_800_000_000.0
+        # Segmento 1 chega por último (fora de ordem), 2 s depois do primeiro.
+        segments = [
+            SegmentStats(seq=0, received_at=t0, size_bytes=512, rtt_ms=20.0,
+                         retransmissions=0, rtt_estimated_ms=20.0,
+                         timeout_ms=1000.0, elapsed_ms=20.0),
+            SegmentStats(seq=1, received_at=t0 + 2.0, size_bytes=512,
+                         rtt_ms=40.0, retransmissions=2, rtt_estimated_ms=20.0,
+                         timeout_ms=1000.0, elapsed_ms=2040.0,
+                         loss_simulated=True),
+            SegmentStats(seq=2, received_at=t0 + 1.0, size_bytes=256,
+                         rtt_ms=30.0, retransmissions=0, rtt_estimated_ms=21.25,
+                         timeout_ms=1000.0, elapsed_ms=30.0),
+        ]
+        summary = self.summarize(segments)
+        self.assertEqual(summary["segments"], 3)
+        self.assertEqual(summary["total_bytes"], 1280)
+        self.assertAlmostEqual(summary["duration_s"], 2.0, places=3)
+        # 1280 bytes * 8 / 2 s = 5.12 kbit/s
+        self.assertAlmostEqual(summary["throughput_kbps"], 5.12, places=3)
+        self.assertEqual(summary["retransmissions"], 2)
+        self.assertEqual(summary["timeouts"], 1)
+        self.assertEqual(summary["loss_simulated"], 1)
+        self.assertAlmostEqual(summary["rtt_mean_ms"], 30.0)
+        self.assertEqual(summary["rtt_min_ms"], 20.0)
+        self.assertEqual(summary["rtt_max_ms"], 40.0)
+        # Estimativa final = a do último DATA a chegar (seg 1), não a do maior seq.
+        self.assertEqual(summary["rtt_estimated_ms"], 20.0)
+        self.assertIn("vazão efetiva:            5.1 kbps (bytes * 8 / tempo total)",
+                      format_summary(summary))
+
+    def test_single_segment_has_no_effective_throughput(self):
+        summary = self.summarize([stat(0)])
+        self.assertEqual(summary["duration_s"], 0.0)
+        self.assertIsNone(summary["throughput_kbps"])
+        self.assertTrue(any(line.startswith("vazão efetiva:") and "-" in line
+                            for line in format_summary(summary)))
+
+    def test_empty_csv_has_no_summary(self):
+        self.assertIsNone(self.summarize([]))
 
 
 class RttEstimatorTest(unittest.TestCase):

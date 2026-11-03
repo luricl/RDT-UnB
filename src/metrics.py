@@ -88,3 +88,73 @@ def write_metrics(segments, group, protocol, window_size, started_at,
         for stat in segments:
             writer.writerow(segment_row(stat, window_size, protocol))
     return path
+
+
+def summarize_metrics(path):
+    """Lê um CSV de métricas e devolve as métricas agregadas da sessão.
+
+    Tudo vem do CSV, para que o resumo do terminal bata com o arquivo usado
+    nos gráficos e no relatório. Devolve None se o CSV não tiver segmentos.
+    """
+    with open(path, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        return None
+
+    # O CSV fica em ordem de segmento; a ordem de chegada é a do timestamp.
+    by_arrival = sorted(rows, key=lambda r: datetime.fromisoformat(r["timestamp"]))
+    first = datetime.fromisoformat(by_arrival[0]["timestamp"])
+    last = datetime.fromisoformat(by_arrival[-1]["timestamp"])
+    duration_s = (last - first).total_seconds()
+
+    total_bytes = sum(int(r["size_bytes"]) for r in rows)
+    rtts = [float(r["rtt_ms"]) for r in rows]
+    per_segment = [float(r["throughput_kbps"]) for r in rows
+                   if r["throughput_kbps"]]
+    estimates = [r["rtt_estimated_ms"] for r in by_arrival
+                 if r["rtt_estimated_ms"]]
+
+    return {
+        "segments": len(rows),
+        "total_bytes": total_bytes,
+        "duration_s": duration_s,
+        # Vazão do protocolo: o arquivo inteiro sobre o tempo total. É a que
+        # mostra o ganho da janela no GBN e no SR.
+        "throughput_kbps": (total_bytes * 8 / duration_s / 1000
+                            if duration_s > 0 else None),
+        # Média da coluna throughput_kbps: vazão de cada segmento isolado.
+        "segment_throughput_kbps": (sum(per_segment) / len(per_segment)
+                                    if per_segment else None),
+        "retransmissions": sum(int(r["retransmissions"]) for r in rows),
+        "timeouts": sum(int(r["timeout_occurred"]) for r in rows),
+        "loss_simulated": sum(int(r["loss_simulated"]) for r in rows),
+        "rtt_mean_ms": sum(rtts) / len(rtts),
+        "rtt_min_ms": min(rtts),
+        "rtt_max_ms": max(rtts),
+        "rtt_estimated_ms": float(estimates[-1]) if estimates else None,
+    }
+
+
+def format_summary(summary):
+    """Linhas do resumo para o terminal."""
+    def num(value, unit, digits=1):
+        return "-" if value is None else f"{value:.{digits}f} {unit}"
+
+    return [
+        f"segmentos recebidos:      {summary['segments']} "
+        f"({summary['total_bytes']} bytes)",
+        f"tempo total:              {num(summary['duration_s'], 's', 2)} "
+        "(do 1º ao último DATA)",
+        f"vazão efetiva:            {num(summary['throughput_kbps'], 'kbps')} "
+        "(bytes * 8 / tempo total)",
+        f"vazão média por segmento: "
+        f"{num(summary['segment_throughput_kbps'], 'kbps')} "
+        "(média da coluna throughput_kbps)",
+        f"retransmissões:           {summary['retransmissions']} "
+        f"({summary['timeouts']} segmentos com timeout)",
+        f"perda simulada:           {summary['loss_simulated']} segmentos",
+        f"RTT:                      médio {num(summary['rtt_mean_ms'], 'ms')}, "
+        f"mín {num(summary['rtt_min_ms'], 'ms')}, "
+        f"máx {num(summary['rtt_max_ms'], 'ms')}",
+        f"RTT estimado final:       {num(summary['rtt_estimated_ms'], 'ms')}",
+    ]

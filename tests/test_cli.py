@@ -159,6 +159,8 @@ class EntryPointTest(unittest.TestCase):
         self.assertEqual(row["window_size"], "1")
         self.assertEqual(row["protocol"], "saw")
         self.assertIn("métricas salvas em", result.stdout)
+        self.assertIn("--- resumo da sessão", result.stdout)
+        self.assertIn("vazão efetiva:", result.stdout)
 
     def test_runs_selective_repeat(self):
         server = FakeServer()
