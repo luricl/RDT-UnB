@@ -119,7 +119,7 @@ def summarize_metrics(path):
     duration_s = end - start
 
     total_bytes = sum(int(r["size_bytes"]) for r in rows)
-    rtts = [float(r["rtt_ms"]) for r in rows]
+    rtts = [float(r["rtt_ms"]) for r in rows if r["rtt_ms"]]
     per_segment = [float(r["throughput_kbps"]) for r in rows
                    if r["throughput_kbps"]]
     estimates = [r["rtt_estimated_ms"] for r in by_arrival

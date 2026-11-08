@@ -21,7 +21,7 @@ def load(path):
     with open(path, newline="") as f:
         rows = list(csv.DictReader(f))
     seg = np.array([int(r["segment"]) for r in rows])
-    rtt = np.array([float(r["rtt_ms"]) for r in rows])
+    rtt = np.array([float(r["rtt_ms"]) if r["rtt_ms"] else np.nan for r in rows])
     thr = np.array([float(r["throughput_kbps"]) for r in rows])
     to = np.array([int(r["timeout_occurred"]) for r in rows], dtype=bool)
     return seg, rtt, thr, to

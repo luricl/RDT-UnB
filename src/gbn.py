@@ -110,9 +110,11 @@ def download(sock, server_addr, total_segments, timeout_ms, window_size,
 
         seq = base_seq
         now = time.monotonic()
-        rtt_ms = (now - last_sent_at[seq]) * 1000
-        # só amostras de segmentos sem retransmissão alimentam o EWMA.
-        if retransmissions[seq] == 0:
+        # Só segmentos sem retransmissão têm RTT não ambíguo (Karn): o DATA pode
+        # responder a qualquer REQ enviado. Nos demais, rtt_ms fica vazio.
+        clean = retransmissions[seq] == 0
+        rtt_ms = (now - last_sent_at[seq]) * 1000 if clean else None
+        if clean:
             estimator.update(rtt_ms)
         stats.append(SegmentStats(seq=seq, received_at=time.time(),
                                   size_bytes=len(packet.payload), rtt_ms=rtt_ms,
