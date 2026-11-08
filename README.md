@@ -41,7 +41,10 @@ python3 cliente.py --server 137.131.178.229 --group grupo07 --file small
 | `--window` | tamanho da janela (gbn/sr); `saw` usa sempre 1 | `4` para gbn/sr |
 | `--segment-size` | `segment_size` solicitado, em bytes | `512` |
 | `--loss` | probabilidade de perda simulada, de 0 a 1 | `0` (desligada) |
-| `--timeout` | timeout de retransmissão, em milissegundos | `1000` |
+| `--timeout` | timeout de retransmissão, em milissegundos (com `--adaptive`, só até a primeira amostra de RTT) | `1000` |
+| `--adaptive` | timeout adaptativo `EstimatedRTT + 4*DevRTT` (só `sr`) | desligado |
+| `--alpha` | peso da EWMA do RTT | `0.125` |
+| `--beta` | peso da EWMA do DevRTT | `0.25` |
 
 `python3 cliente.py --help` mostra todas as opções.
 

@@ -36,6 +36,21 @@ class ParseArgsTest(unittest.TestCase):
         self.assertEqual(config.segment_size, 512)
         self.assertEqual(config.loss, 0.0)
 
+    def test_adaptive_options(self):
+        config = parse_args(BASE + ["--protocol", "sr", "--adaptive",
+                                    "--alpha", "0.2", "--beta", "0.3"])
+        self.assertTrue(config.adaptive)
+        self.assertEqual((config.alpha, config.beta), (0.2, 0.3))
+        self.assertFalse(parse_args(BASE).adaptive)
+
+    def test_adaptive_requires_sr(self):
+        status, _ = parse_fails(BASE + ["--adaptive"])
+        self.assertEqual(status, 2)
+
+    def test_invalid_beta(self):
+        status, _ = parse_fails(BASE + ["--beta", "0"])
+        self.assertEqual(status, 2)
+
     def test_all_options(self):
         config = parse_args(BASE + [
             "--file", "large", "--protocol", "sr", "--window", "16",

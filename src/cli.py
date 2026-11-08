@@ -13,6 +13,7 @@ from src.handshake import HandshakeError, handshake
 from src.metrics import write_metrics
 from src import saw, sr, gbn
 from src.packets import DownloadError
+from src.rtt import DEFAULT_ALPHA, DEFAULT_BETA
 
 DEFAULT_PORT = 8080
 DEFAULT_SEGMENT_SIZE = 512
@@ -39,6 +40,9 @@ class Config:
     loss: float
     seed: int
     timeout_ms: float
+    adaptive: bool = False
+    alpha: float = DEFAULT_ALPHA
+    beta: float = DEFAULT_BETA
 
 
 def build_parser():
@@ -70,7 +74,15 @@ def build_parser():
                              "experimentos reprodutíveis (padrão: %(default)s)")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_MS,
                         help="timeout de retransmissão em milissegundos "
-                             "(padrão: %(default)s)")
+                             "(padrão: %(default)s); com --adaptive, só vale "
+                             "até a primeira amostra de RTT")
+    parser.add_argument("--adaptive", action="store_true",
+                        help="timeout adaptativo EstimatedRTT + 4*DevRTT "
+                             "(só no protocolo sr)")
+    parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA,
+                        help="peso da EWMA do RTT (padrão: %(default)s)")
+    parser.add_argument("--beta", type=float, default=DEFAULT_BETA,
+                        help="peso da EWMA do DevRTT (padrão: %(default)s)")
     return parser
 
 
@@ -102,6 +114,12 @@ def parse_args(argv=None):
         parser.error("--loss deve estar entre 0 e 1")
     if not args.timeout > 0:
         parser.error("--timeout deve ser maior que 0 (em milissegundos)")
+    if args.adaptive and args.protocol != "sr":
+        parser.error("--adaptive só se aplica ao protocolo sr")
+    if not 0 < args.alpha <= 1:
+        parser.error("--alpha deve estar em (0, 1]")
+    if not 0 < args.beta <= 1:
+        parser.error("--beta deve estar em (0, 1]")
 
     return Config(
         server=args.server,
@@ -114,6 +132,9 @@ def parse_args(argv=None):
         loss=args.loss,
         seed=args.seed,
         timeout_ms=args.timeout,
+        adaptive=args.adaptive,
+        alpha=args.alpha,
+        beta=args.beta,
     )
 
 
@@ -123,7 +144,8 @@ def main(argv=None):
           f"grupo={config.group} arquivo={config.file}")
     print(f"protocolo={config.protocol} janela={config.window} "
           f"segment_size={config.segment_size} loss={config.loss} "
-          f"timeout={config.timeout_ms}ms")
+          f"timeout={config.timeout_ms}ms "
+          f"adaptive={config.adaptive}")
 
     # O recvfrom devolve o IP do remetente; resolver o hostname aqui permite
     # comparar o endereço das respostas com o do servidor.
@@ -150,7 +172,9 @@ def main(argv=None):
         if config.protocol == "sr":
             result = sr.download(sock, server_addr, ok.total_segments,
                                  config.timeout_ms, config.window,
-                                 loss=config.loss, seed=config.seed)
+                                 loss=config.loss, seed=config.seed,
+                                 adaptive=config.adaptive,
+                                 alpha=config.alpha, beta=config.beta)
         elif config.protocol == "gbn":
             result = gbn.download(sock, server_addr, ok.total_segments,
                                   config.timeout_ms, config.window,

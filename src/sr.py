@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 
 from src.packets import Data, PacketError, build_ack, build_req, parse
-from src.rtt import RttEstimator
+from src.rtt import DEFAULT_ALPHA, DEFAULT_BETA, RttEstimator
 from src.saw import Download, DownloadError, SegmentStats
 
 DEFAULT_MAX_RETRIES = 10
@@ -27,6 +27,7 @@ class Pending:
     first_sent_at: float          # primeiro REQ (para elapsed_ms)
     sent_at: float                # último REQ (para rtt_ms, como no SAW)
     deadline: float               # instante em que o timer deste segmento vence
+    timeout_ms: float             # timeout aplicado ao último REQ (vai ao CSV)
     retransmissions: int = 0
     loss_simulated: bool = False  # algum DATA deste segmento foi descartado
 
@@ -58,15 +59,21 @@ def receive_data(sock, server_addr, deadline):
 
 
 def download(sock, server_addr, total_segments, timeout_ms, window,
-             max_retries=DEFAULT_MAX_RETRIES, loss=0.0, seed=0):
+             max_retries=DEFAULT_MAX_RETRIES, loss=0.0, seed=0,
+             adaptive=False, alpha=DEFAULT_ALPHA, beta=DEFAULT_BETA):
     """Baixa todos os segmentos em Selective Repeat e remonta o arquivo.
 
     `loss` e `seed` funcionam como no SAW: cada DATA de um segmento pendente
     é descartado com probabilidade `loss`, com sorteio reproduzível por `seed`.
+
+    Com `adaptive`, `timeout_ms` vale só até a primeira amostra de RTT; depois
+    cada REQ usa EstimatedRTT + 4 * DevRTT (`alpha` e `beta` ajustam as EWMAs).
     """
-    timeout_s = timeout_ms / 1000
     rng = random.Random(seed)
-    estimator = RttEstimator()
+    estimator = RttEstimator(alpha=alpha, beta=beta)
+
+    def current_timeout_ms():
+        return estimator.timeout_ms(timeout_ms) if adaptive else timeout_ms
 
     base = 0        # segmento mais antigo ainda sem DATA
     next_seq = 0    # próximo segmento a ser pedido
@@ -79,8 +86,10 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
         while next_seq < base + window and next_seq < total_segments:
             sock.sendto(build_req(next_seq), server_addr)
             now = time.monotonic()
+            t_ms = current_timeout_ms()
             pending[next_seq] = Pending(first_sent_at=now, sent_at=now,
-                                        deadline=now + timeout_s)
+                                        deadline=now + t_ms / 1000,
+                                        timeout_ms=t_ms)
             next_seq += 1
 
         # 2. Espera um DATA até o timer mais próximo vencer.
@@ -98,7 +107,7 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
             else:
                 del pending[data.seq]
                 buffer[data.seq] = data.payload
-                stats.append(segment_stats(data, p, estimator, timeout_ms))
+                stats.append(segment_stats(data, p, estimator))
                 sock.sendto(build_ack(data.seq), server_addr)
                 # Desliza a janela por cima de tudo que já está no buffer.
                 while base in buffer:
@@ -116,13 +125,14 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
             sock.sendto(build_req(seq), server_addr)
             p.retransmissions += 1
             p.sent_at = now
-            p.deadline = now + timeout_s
+            p.timeout_ms = current_timeout_ms()
+            p.deadline = now + p.timeout_ms / 1000
 
     content = b"".join(buffer[seq] for seq in range(total_segments))
     return Download(content=content, segments=sorted_by_seq(stats))
 
 
-def segment_stats(data, p, estimator, timeout_ms):
+def segment_stats(data, p, estimator):
     """Monta o SegmentStats de um segmento que acabou de chegar."""
     now = time.monotonic()
     # RTT a partir do último REQ, e só amostras sem retransmissão entram na
@@ -134,7 +144,7 @@ def segment_stats(data, p, estimator, timeout_ms):
                         size_bytes=len(data.payload), rtt_ms=rtt_ms,
                         retransmissions=p.retransmissions,
                         rtt_estimated_ms=estimator.estimated_ms,
-                        timeout_ms=timeout_ms,
+                        timeout_ms=p.timeout_ms,
                         elapsed_ms=(now - p.first_sent_at) * 1000,
                         loss_simulated=p.loss_simulated)
 
