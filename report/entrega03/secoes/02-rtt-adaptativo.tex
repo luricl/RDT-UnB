@@ -1,0 +1,32 @@
+\section{RTT adaptativo --- implementação}
+
+\preencher{Descrever onde e como o estimador é atualizado no código e quais
+amostras são ignoradas após retransmissões.}
+
+\subsection{Estimativa EWMA}
+
+Apresentar a fórmula implementada:
+\begin{equation}
+  \mathrm{EstimatedRTT} \leftarrow
+  (1-\alpha)\,\mathrm{EstimatedRTT}+\alpha\,\mathrm{SampleRTT}.
+\end{equation}
+\preencher{Informar a fórmula completa do timeout, incluindo o desvio do RTT,
+e os valores escolhidos para $\alpha$ e $\beta$.}
+
+\subsection{Justificativa dos parâmetros}
+\preencher{Justificar $\alpha$ e $\beta$ e mostrar, com dados do experimento,
+o impacto dos valores escolhidos.}
+
+\figura{rtt_estimado_vs_medido.png}{0.9\linewidth}
+  {RTT estimado versus RTT medido por segmento durante a transferência.}
+  {fig:rtt-estimado}
+
+\preencher{Inserir a análise da convergência do estimador, incluindo os trechos
+com variação, picos e possíveis perdas.}
+
+\figura{timeout_adaptativo.png}{0.9\linewidth}
+  {Evolução do timeout adaptativo ao longo da transferência.}
+  {fig:timeout-adaptativo}
+
+\preencher{Explicar como o timeout acompanha as variações de RTT e se houve
+estimativas excessivamente conservadoras ou agressivas.}

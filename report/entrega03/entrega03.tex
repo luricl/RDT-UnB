@@ -1,0 +1,83 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+
+\graphicspath{{../imgs/}}
+\addto\captionsbrazil{\renewcommand{\refname}{Referências bibliográficas}}
+\setlength{\emergencystretch}{3em}
+
+\newcommand{\preencher}[1]{\textcolor{red}{[#1]}}
+\newcommand{\figura}[4]{%
+  \begin{figure}[H]
+    \centering
+    \IfFileExists{../imgs/#1}%
+      {\includegraphics[width=#2]{#1}}%
+      {\fbox{\parbox[c][4cm][c]{#2}{\centering\textcolor{red}{\ttfamily ../imgs/\detokenize{#1}}}}}%
+    \caption{#3}
+    \label{#4}
+  \end{figure}}
+
+\begin{document}
+
+\begin{titlepage}
+  \begin{center}
+    \includegraphics[width=0.22\textwidth]{../imgs/logo_unb.png}
+
+    \vspace{1em}
+    {\Large\textbf{Universidade de Brasília}}\\
+    {\large Departamento de Ciência da Computação}\\
+    {\large CIC0236 Teleinformática e Redes 2}
+
+    \vfill
+    {\LARGE\textbf{RDT-UnB: relatório final}}\\[1em]
+    {\large Evolução de SAW a protocolos de janela com RTT adaptativo}
+
+    \vfill
+    \begin{tabular}{rl}
+      231013510 & Atila Sousa Fernandes\\
+      231013645 & Lucas Adeodato de Oliveira\\
+      222005395 & Lurian Correia Lima\\
+    \end{tabular}
+
+    \vfill
+    {\large \today}
+  \end{center}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+
+\input{secoes/01-introducao}
+\input{secoes/02-rtt-adaptativo}
+\input{secoes/03-timeout}
+\input{secoes/04-wireshark}
+\input{secoes/05-visao-integrada}
+\input{secoes/06-conclusao}
+
+\begin{thebibliography}{9}
+  \bibitem{kurose}
+    J. F. Kurose e K. W. Ross, \textit{Computer Networking: A Top-Down Approach},
+    8th ed. Hoboken: Pearson, 2021.
+  \bibitem{rfc768}
+    J. Postel, ``User Datagram Protocol,'' RFC 768, IETF, 1980.
+    Disponível em: \url{https://www.rfc-editor.org/rfc/rfc768}.
+  \bibitem{rfc1321}
+    R. Rivest, ``The MD5 Message-Digest Algorithm,'' RFC 1321, IETF, 1992.
+    Disponível em: \url{https://www.rfc-editor.org/rfc/rfc1321}.
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,45 @@
+\section{Análise Wireshark}
+
+\preencher{Registrar a captura UDP durante uma transferência do arquivo
+\textit{large}. Usar o filtro \texttt{udp and host 137.131.178.229}. Informar
+data, duração, versão do Wireshark e arquivo de captura.}
+
+\figura{wireshark_sessao_completa.png}{0.95\linewidth}
+  {Visão geral da sessão completa: HELLO, REQs, FIN e DONE.}
+  {fig:wireshark-sessao}
+
+\preencher{Anotar a captura e explicar os principais intervalos da sessão.}
+
+\figura{wireshark_retransmissoes.png}{0.95\linewidth}
+  {Zoom em pelo menos dois eventos de retransmissão, com REQ original,
+   REQ retransmitido e delta de tempo.}
+  {fig:wireshark-retransmissoes}
+
+\preencher{Identificar os dois eventos, seus números de sequência, timestamps
+e deltas medidos diretamente na captura.}
+
+\figura{wireshark_csv.png}{0.95\linewidth}
+  {Correlação entre um evento do Wireshark e a linha correspondente no CSV.}
+  {fig:wireshark-csv}
+
+\preencher{Informar o timestamp do pacote, o segmento correspondente e a linha
+ou registro equivalente no CSV.}
+
+\subsection{Medição de RTT}
+\begin{table}[H]
+  \centering
+  \caption{RTT medido no Wireshark versus RTT registrado pelo cliente.}
+  \label{tab:rtt-wireshark}
+  \begin{tabular}{lrrr}
+    \toprule
+    Segmento & RTT Wireshark (ms) & RTT CSV (ms) & Diferença (ms)\\
+    \midrule
+    \preencher{seq 1} & \preencher{ms} & \preencher{ms} & \preencher{ms}\\
+    \preencher{seq 2} & \preencher{ms} & \preencher{ms} & \preencher{ms}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\preencher{Comparar as medições e explicar diferenças causadas por timestamp,
+processamento local, retransmissões ou pela definição de início/fim usada
+pelo cliente.}

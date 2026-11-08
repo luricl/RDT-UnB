@@ -26,7 +26,7 @@
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
 
-\graphicspath{{figuras/}}
+\graphicspath{{../imgs/}}
 \addto\captionsbrazil{\renewcommand{\refname}{Referências bibliográficas}}
 \setlength{\emergencystretch}{3em} % evita linhas estouradas por nomes em \texttt
 
@@ -38,9 +38,9 @@
 \newcommand{\figura}[4]{%
   \begin{figure}[H]
     \centering
-    \IfFileExists{figuras/#1}%
+    \IfFileExists{../imgs/#1}%
       {\includegraphics[width=#2]{#1}}%
-      {\fbox{\parbox[c][4cm][c]{#2}{\centering\textcolor{red}{\ttfamily figuras/\detokenize{#1}}}}}%
+      {\fbox{\parbox[c][4cm][c]{#2}{\centering\textcolor{red}{\ttfamily ../imgs/\detokenize{#1}}}}}%
     \caption{#3}
     \label{#4}
   \end{figure}}

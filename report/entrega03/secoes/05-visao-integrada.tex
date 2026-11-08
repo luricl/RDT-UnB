@@ -1,0 +1,29 @@
+\section{Visão integrada --- comparação final de todos os protocolos}
+
+\preencher{Selecionar o melhor cenário de cada protocolo e explicar o critério
+de seleção. Usar o arquivo large e condições comparáveis.}
+
+\begin{table}[H]
+  \centering
+  \caption{Resultados consolidados das três entregas.}
+  \label{tab:comparacao-final}
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Protocolo & Janela & Timeout & Throughput médio (kbps) &
+      Retransmissões & Tempo total (s)\\
+    \midrule
+    SAW & 1  & fixo       & \preencher{kbps} & \preencher{n} & \preencher{s}\\
+    GBN & 16 & fixo       & \preencher{kbps} & \preencher{n} & \preencher{s}\\
+    GBN & 16 & adaptativo & \preencher{kbps} & \preencher{n} & \preencher{s}\\
+    SR  & 16 & fixo       & \preencher{kbps} & \preencher{n} & \preencher{s}\\
+    SR  & 16 & adaptativo & \preencher{kbps} & \preencher{n} & \preencher{s}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\figura{comparacao_throughput.png}{0.9\linewidth}
+  {Throughput médio dos protocolos e configurações comparados.}
+  {fig:comparacao-throughput}
+
+\preencher{Interpretar o gráfico de barras como uma narrativa única da evolução
+do projeto, destacando ganhos, custos e o efeito do RTT adaptativo.}
