@@ -18,14 +18,16 @@ class FakeServer:
     `drop` = {(seq, n)}: ignora o n-ésimo REQ do seq.
     `delay` = seqs cujo DATA só é enviado depois do DATA do próximo REQ, para
     chegar fora de ordem. `dup` = seqs cujo DATA é enviado duas vezes.
+    `slow` = {seq: segundos}: atrasa só a resposta ao primeiro REQ do seq.
     """
 
-    def __init__(self, drop=(), delay=(), dup=()):
+    def __init__(self, drop=(), delay=(), dup=(), slow=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("127.0.0.1", 0))
         self.sock.settimeout(1)
         self.addr = self.sock.getsockname()
         self.drop, self.delay, self.dup = set(drop), set(delay), set(dup)
+        self.slow = dict(slow or {})
         self.reqs = []
         self.held = []
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -45,6 +47,10 @@ class FakeServer:
             if (seq, self.reqs.count(seq)) in self.drop:
                 continue
             pkt = data_packet(seq, SEGMENTS[seq])
+            if seq in self.slow and self.reqs.count(seq) == 1:
+                threading.Timer(self.slow[seq], self.sock.sendto,
+                                (pkt, client)).start()
+                continue
             if seq in self.delay and not self.held:
                 self.held.append(pkt)
                 continue
@@ -139,6 +145,20 @@ class SrTest(unittest.TestCase):
         self.assertEqual([by_seq[i].timeout_ms for i in (2, 3, 4)], [20] * 3)
         self.assertEqual(by_seq[1].retransmissions, 2)
         self.assertEqual(by_seq[1].timeout_ms, 80)  # 20 -> 40 -> 80
+
+    def test_detects_spurious_retransmission(self):
+        # O DATA do 1º REQ 1 chega em 30 ms, depois do timer de 20 ms: a
+        # resposta à retransmissão chega antes e a original vira duplicata,
+        # durante a espera do segmento 3 (também lento, para segurar o laço).
+        server = FakeServer(slow={1: 0.03, 3: 0.05})
+        result = self.run_download(server, window=1, adaptive=True,
+                                   min_timeout_ms=20)
+        self.assertEqual(result.content, b"".join(SEGMENTS))
+        self.assertEqual(result.spurious, 1)
+        by_seq = {s.seq: s for s in result.segments}
+        # A amostra lenta (>= 20 ms) do segmento 1 entrou na EWMA.
+        self.assertGreater(by_seq[4].rtt_estimated_ms,
+                           by_seq[2].rtt_estimated_ms + 1)
 
     def test_gives_up_after_max_retries(self):
         server = FakeServer(drop={(1, n) for n in range(1, 10)})

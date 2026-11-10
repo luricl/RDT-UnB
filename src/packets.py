@@ -224,6 +224,7 @@ class SegmentStats:
 class Download:
     content: bytes
     segments: list
+    spurious: int = 0  # retransmissões que se mostraram desnecessárias (só SR)
 
     @property
     def retransmissions(self):

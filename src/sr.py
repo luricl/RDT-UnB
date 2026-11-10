@@ -71,6 +71,13 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
     cada REQ novo usa max(`min_timeout_ms`, EstimatedRTT + 4 * DevRTT), com
     `alpha` e `beta` ajustando as EWMAs. A cada retransmissão, o timer daquele
     segmento dobra (backoff exponencial, RFC 6298, 5.5).
+
+    Retransmissão espúria: o servidor responde a todo REQ, então se o DATA
+    original só estava atrasado chegam dois DATA do mesmo segmento. Num
+    segmento retransmitido uma vez, o segundo DATA prova que o primeiro
+    respondia ao REQ original, e o tempo desde esse REQ vira uma amostra de
+    RTT válida. Sem isso, o filtro de Karn descartaria justamente as amostras
+    lentas e o timeout nunca acompanharia uma subida do RTT.
     """
     rng = random.Random(seed)
     estimator = RttEstimator(alpha=alpha, beta=beta,
@@ -84,6 +91,10 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
     pending = {}    # seq -> Pending: pedidos em voo
     buffer = {}     # seq -> payload: recebidos, inclusive fora de ordem
     stats = []
+    # seq -> RTT (ms) desde o REQ original, para segmentos recebidos após uma
+    # única retransmissão; vira amostra se um DATA duplicado confirmar.
+    retransmitted_once = {}
+    spurious = 0
 
     while base < total_segments:
         # 1. Enche a janela: pede segmentos novos enquanto houver espaço.
@@ -100,8 +111,17 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
         nearest_deadline = min(p.deadline for p in pending.values())
         data = receive_data(sock, server_addr, nearest_deadline)
 
-        # Só interessa DATA de segmento pendente; duplicatas de segmentos já
-        # recebidos não estão em `pending` e são descartadas.
+        # DATA duplicado de segmento já recebido: se ele foi retransmitido uma
+        # vez, a retransmissão foi espúria e o RTT desde o REQ original é válido.
+        if data is not None and data.seq in retransmitted_once:
+            spurious += 1
+            if adaptive:
+                estimator.update(retransmitted_once.pop(data.seq))
+            else:
+                del retransmitted_once[data.seq]
+
+        # Só interessa DATA de segmento pendente; as demais duplicatas são
+        # descartadas.
         if data is not None and data.seq in pending:
             p = pending[data.seq]
             if loss > 0.0 and rng.random() < loss:
@@ -112,6 +132,8 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
                 del pending[data.seq]
                 buffer[data.seq] = data.payload
                 stats.append(segment_stats(data, p, estimator))
+                if p.retransmissions == 1:
+                    retransmitted_once[data.seq] = stats[-1].elapsed_ms
                 sock.sendto(build_ack(data.seq), server_addr)
                 # Desliza a janela por cima de tudo que já está no buffer.
                 while base in buffer:
@@ -136,7 +158,8 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
             p.deadline = now + p.timeout_ms / 1000
 
     content = b"".join(buffer[seq] for seq in range(total_segments))
-    return Download(content=content, segments=sorted_by_seq(stats))
+    return Download(content=content, segments=sorted_by_seq(stats),
+                    spurious=spurious)
 
 
 def segment_stats(data, p, estimator):
