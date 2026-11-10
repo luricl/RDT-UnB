@@ -12,13 +12,16 @@ comparado com o RTT medido:
   sem perda nenhuma);
 - timeout_medio_ms: quanto cada perda real custaria, em média.
 
-Além dos traços reais, o primeiro arquivo gera um traço sintético "degrau":
-o mesmo RTT com +STEP_MS a partir da metade, como o "delay adicional" do
-cenário surpresa. Nele, duas colunas a mais medem a reação do par:
+Além dos traços reais, o primeiro arquivo gera um traço sintético "pulso":
+o mesmo RTT com +STEP_MS no terço do meio, como o "delay adicional" do
+cenário surpresa ligado e depois desligado. Nele, colunas a mais medem a
+reação do par:
 
-- espurios_apos_degrau: espúrios nas REACTION amostras seguintes ao degrau;
+- espurios_apos_subida: espúrios nas REACTION amostras seguintes à subida;
 - amostras_ate_90pct: quantas amostras o EstimatedRTT leva para cobrir 90%
-  do degrau.
+  da subida;
+- timeout_apos_descida_ms: timeout médio nas REACTION amostras depois que o
+  atraso some, ou seja, quanto uma perda custaria logo depois do pulso.
 
 Uso: python3 scripts/ewma_replay.py <saida.csv> <metrics.csv> [<metrics.csv> ...]
 """
@@ -37,7 +40,7 @@ PAIRS = [(0.125, 0.25), (0.05, 0.25), (0.25, 0.25), (0.5, 0.25),
          (0.125, 0.1), (0.125, 0.5), (1.0, 1.0)]
 FLOORS = [0.0, DEFAULT_MIN_TIMEOUT_MS]
 STEP_MS = 100.0
-REACTION = 50
+REACTION = 100
 
 
 def load_trace(path):
@@ -49,28 +52,32 @@ def load_trace(path):
             if r["rtt_ms"] and r["retransmissions"] == "0"]
 
 
-def replay(trace, alpha, beta, floor, step_at=None):
+def replay(trace, alpha, beta, floor, pulse=None):
+    """`pulse` = (início, fim) do trecho com +STEP_MS, só no traço sintético."""
     est = RttEstimator(alpha=alpha, beta=beta, min_timeout_ms=floor)
     est.update(trace[0])
     spurious, timeouts = 0, []
-    after_step, converged = 0, None
+    after_rise, converged, after_drop = 0, None, []
     for i, sample in enumerate(trace[1:], start=1):
         timeout = est.timeout_ms(fallback_ms=None)
         timeouts.append(timeout)
         if sample > timeout:
             spurious += 1
-            if step_at is not None and step_at <= i < step_at + REACTION:
-                after_step += 1
+            if pulse and pulse[0] <= i < pulse[0] + REACTION:
+                after_rise += 1
+        if pulse and pulse[1] <= i < pulse[1] + REACTION:
+            after_drop.append(timeout)
         est.update(sample)
-        if (step_at is not None and i >= step_at and converged is None
-                and est.estimated_ms >= trace[step_at - 1] + 0.9 * STEP_MS):
-            converged = i - step_at + 1
+        if (pulse and i >= pulse[0] and converged is None
+                and est.estimated_ms >= trace[pulse[0] - 1] + 0.9 * STEP_MS):
+            converged = i - pulse[0] + 1
     result = {"timeouts_espurios": spurious,
               "espurios_pct": round(100 * spurious / (len(trace) - 1), 2),
               "timeout_medio_ms": round(statistics.fmean(timeouts), 1)}
-    if step_at is not None:
-        result["espurios_apos_degrau"] = after_step
+    if pulse:
+        result["espurios_apos_subida"] = after_rise
         result["amostras_ate_90pct"] = converged
+        result["timeout_apos_descida_ms"] = round(statistics.fmean(after_drop), 1)
     return result
 
 
@@ -81,12 +88,13 @@ def main():
     traces = [(os.path.relpath(p, ROOT).replace("\\", "/"), load_trace(p), None)
               for p in paths]
     name, first, _ = traces[0]
-    half = len(first) // 2
-    traces.append((f"degrau +{STEP_MS:g} ms em {name}",
-                   first[:half] + [s + STEP_MS for s in first[half:]], half))
+    a, b = len(first) // 3, 2 * len(first) // 3
+    traces.append((f"pulso +{STEP_MS:g} ms em {name}",
+                   first[:a] + [s + STEP_MS for s in first[a:b]] + first[b:],
+                   (a, b)))
 
     rows = []
-    for name, trace, step_at in traces:
+    for name, trace, pulse in traces:
         for floor in FLOORS:
             for alpha, beta in PAIRS:
                 rows.append({
@@ -94,8 +102,9 @@ def main():
                     "amostras": len(trace),
                     "rtt_mediano_ms": round(statistics.median(trace), 1),
                     "piso_ms": floor, "alpha": alpha, "beta": beta,
-                    "espurios_apos_degrau": "", "amostras_ate_90pct": "",
-                    **replay(trace, alpha, beta, floor, step_at),
+                    "espurios_apos_subida": "", "amostras_ate_90pct": "",
+                    "timeout_apos_descida_ms": "",
+                    **replay(trace, alpha, beta, floor, pulse),
                 })
     with open(out, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
