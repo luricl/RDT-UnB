@@ -1,0 +1,15 @@
+perda,alpha,beta,duracao_s,vazao_kbps,timeouts,retransmissoes,timeout_medio_ms,timeout_min_ms,rtt_estimado_final_ms,rtt_estimado_desvio_ms,csv
+0.0,0.125,0.25,50.021,1677.0,9363,13828,28.14,24.88,25.31,0.64,results/entrega03/ewma_experiments2/p00/a0.125_b0.25.csv
+0.0,0.05,0.25,47.667,1759.8,8591,12207,28.16,25.09,24.92,0.44,results/entrega03/ewma_experiments2/p00/a0.05_b0.25.csv
+0.0,0.25,0.25,49.98,1678.4,9443,14409,27.25,24.36,24.21,0.66,results/entrega03/ewma_experiments2/p00/a0.25_b0.25.csv
+0.0,0.5,0.25,47.722,1757.8,9453,13254,27.31,24.21,25.6,0.86,results/entrega03/ewma_experiments2/p00/a0.5_b0.25.csv
+0.0,0.125,0.1,45.212,1855.4,7432,9592,28.75,26.11,25.84,0.53,results/entrega03/ewma_experiments2/p00/a0.125_b0.1.csv
+0.0,0.125,0.5,45.596,1839.8,8517,11126,28.09,24.54,25.01,0.79,results/entrega03/ewma_experiments2/p00/a0.125_b0.5.csv
+0.0,1.0,1.0,48.967,1713.1,10162,14697,27.93,23.52,24.86,1.64,results/entrega03/ewma_experiments2/p00/a1_b1.csv
+0.1,0.125,0.25,57.255,1465.1,3418,3803,29.17,25.24,25.66,0.61,results/entrega03/ewma_experiments2/p10/a0.125_b0.25.csv
+0.1,0.05,0.25,59.355,1413.3,3551,4006,30.35,26.77,26.68,0.41,results/entrega03/ewma_experiments2/p10/a0.05_b0.25.csv
+0.1,0.25,0.25,57.58,1456.9,3959,4613,28.91,24.92,25.63,0.77,results/entrega03/ewma_experiments2/p10/a0.25_b0.25.csv
+0.1,0.5,0.25,85.733,978.5,10385,23293,29.4,26.08,27.57,1.03,results/entrega03/ewma_experiments2/p10/a0.5_b0.25.csv
+0.1,0.125,0.1,58.672,1429.7,3637,4503,29.24,25.98,26.54,0.63,results/entrega03/ewma_experiments2/p10/a0.125_b0.1.csv
+0.1,0.125,0.5,82.987,1010.8,9526,20154,29.67,24.75,25.41,0.87,results/entrega03/ewma_experiments2/p10/a0.125_b0.5.csv
+0.1,1.0,1.0,55.374,1514.9,7068,7490,28.38,23.59,26.43,1.19,results/entrega03/ewma_experiments2/p10/a1_b1.csv
