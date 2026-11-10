@@ -135,10 +135,12 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
 def segment_stats(data, p, estimator):
     """Monta o SegmentStats de um segmento que acabou de chegar."""
     now = time.monotonic()
-    # RTT a partir do último REQ, e só amostras sem retransmissão entram na
-    # EWMA (algoritmo de Karn), como no SAW.
-    rtt_ms = (now - p.sent_at) * 1000
-    if p.retransmissions == 0:
+    # Só segmentos sem retransmissão têm RTT não ambíguo (Karn): o DATA pode
+    # responder a qualquer REQ enviado. Nos demais, rtt_ms fica vazio e a EWMA
+    # não é atualizada, como no GBN.
+    clean = p.retransmissions == 0
+    rtt_ms = (now - p.sent_at) * 1000 if clean else None
+    if clean:
         estimator.update(rtt_ms)
     return SegmentStats(seq=data.seq, received_at=time.time(),
                         size_bytes=len(data.payload), rtt_ms=rtt_ms,
