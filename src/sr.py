@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 
 from src.packets import Data, PacketError, build_ack, build_req, parse
-from src.rtt import DEFAULT_ALPHA, DEFAULT_BETA, RttEstimator
+from src.rtt import DEFAULT_ALPHA, DEFAULT_BETA, MAX_TIMEOUT_MS, RttEstimator
 from src.saw import Download, DownloadError, SegmentStats
 
 DEFAULT_MAX_RETRIES = 10
@@ -60,17 +60,21 @@ def receive_data(sock, server_addr, deadline):
 
 def download(sock, server_addr, total_segments, timeout_ms, window,
              max_retries=DEFAULT_MAX_RETRIES, loss=0.0, seed=0,
-             adaptive=False, alpha=DEFAULT_ALPHA, beta=DEFAULT_BETA):
+             adaptive=False, alpha=DEFAULT_ALPHA, beta=DEFAULT_BETA,
+             min_timeout_ms=0.0):
     """Baixa todos os segmentos em Selective Repeat e remonta o arquivo.
 
     `loss` e `seed` funcionam como no SAW: cada DATA de um segmento pendente
     é descartado com probabilidade `loss`, com sorteio reproduzível por `seed`.
 
     Com `adaptive`, `timeout_ms` vale só até a primeira amostra de RTT; depois
-    cada REQ usa EstimatedRTT + 4 * DevRTT (`alpha` e `beta` ajustam as EWMAs).
+    cada REQ novo usa max(`min_timeout_ms`, EstimatedRTT + 4 * DevRTT), com
+    `alpha` e `beta` ajustando as EWMAs. A cada retransmissão, o timer daquele
+    segmento dobra (backoff exponencial, RFC 6298, 5.5).
     """
     rng = random.Random(seed)
-    estimator = RttEstimator(alpha=alpha, beta=beta)
+    estimator = RttEstimator(alpha=alpha, beta=beta,
+                             min_timeout_ms=min_timeout_ms)
 
     def current_timeout_ms():
         return estimator.timeout_ms(timeout_ms) if adaptive else timeout_ms
@@ -125,7 +129,10 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
             sock.sendto(build_req(seq), server_addr)
             p.retransmissions += 1
             p.sent_at = now
-            p.timeout_ms = current_timeout_ms()
+            if adaptive:
+                # Backoff: se o timer venceu, o RTT atual é maior do que o
+                # estimado; esperar o mesmo prazo de novo só gera outro timeout.
+                p.timeout_ms = min(2 * p.timeout_ms, MAX_TIMEOUT_MS)
             p.deadline = now + p.timeout_ms / 1000
 
     content = b"".join(buffer[seq] for seq in range(total_segments))

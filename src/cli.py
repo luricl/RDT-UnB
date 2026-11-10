@@ -13,7 +13,7 @@ from src.handshake import HandshakeError, handshake
 from src.metrics import format_summary, summarize_metrics, write_metrics
 from src import saw, sr, gbn
 from src.packets import DownloadError
-from src.rtt import DEFAULT_ALPHA, DEFAULT_BETA
+from src.rtt import DEFAULT_ALPHA, DEFAULT_BETA, DEFAULT_MIN_TIMEOUT_MS
 
 DEFAULT_PORT = 8080
 DEFAULT_SEGMENT_SIZE = 512
@@ -43,6 +43,7 @@ class Config:
     adaptive: bool = False
     alpha: float = DEFAULT_ALPHA
     beta: float = DEFAULT_BETA
+    min_timeout_ms: float = DEFAULT_MIN_TIMEOUT_MS
 
 
 def build_parser():
@@ -83,6 +84,10 @@ def build_parser():
                         help="peso da EWMA do RTT (padrão: %(default)s)")
     parser.add_argument("--beta", type=float, default=DEFAULT_BETA,
                         help="peso da EWMA do DevRTT (padrão: %(default)s)")
+    parser.add_argument("--min-timeout", type=float,
+                        default=DEFAULT_MIN_TIMEOUT_MS,
+                        help="piso do timeout adaptativo em milissegundos "
+                             "(padrão: %(default)s)")
     return parser
 
 
@@ -120,6 +125,8 @@ def parse_args(argv=None):
         parser.error("--alpha deve estar em (0, 1]")
     if not 0 < args.beta <= 1:
         parser.error("--beta deve estar em (0, 1]")
+    if args.min_timeout < 0:
+        parser.error("--min-timeout deve ser maior ou igual a 0")
 
     return Config(
         server=args.server,
@@ -135,6 +142,7 @@ def parse_args(argv=None):
         adaptive=args.adaptive,
         alpha=args.alpha,
         beta=args.beta,
+        min_timeout_ms=args.min_timeout,
     )
 
 
@@ -145,7 +153,8 @@ def main(argv=None):
     print(f"protocolo={config.protocol} janela={config.window} "
           f"segment_size={config.segment_size} loss={config.loss} "
           f"timeout={config.timeout_ms}ms "
-          f"adaptive={config.adaptive}")
+          f"adaptive={config.adaptive}"
+          + (f" min_timeout={config.min_timeout_ms}ms" if config.adaptive else ""))
 
     # O recvfrom devolve o IP do remetente; resolver o hostname aqui permite
     # comparar o endereço das respostas com o do servidor.
@@ -174,7 +183,8 @@ def main(argv=None):
                                  config.timeout_ms, config.window,
                                  loss=config.loss, seed=config.seed,
                                  adaptive=config.adaptive,
-                                 alpha=config.alpha, beta=config.beta)
+                                 alpha=config.alpha, beta=config.beta,
+                                 min_timeout_ms=config.min_timeout_ms)
         elif config.protocol == "gbn":
             result = gbn.download(sock, server_addr, ok.total_segments,
                                   config.timeout_ms, config.window,

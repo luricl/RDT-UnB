@@ -153,6 +153,20 @@ class RttEstimatorTest(unittest.TestCase):
         self.assertAlmostEqual(est.estimated_ms, 112.5)
         self.assertAlmostEqual(est.timeout_ms(1000), 112.5 + 4 * 62.5)
 
+    def test_min_timeout_floor(self):
+        est = RttEstimator(min_timeout_ms=100.0)
+        self.assertEqual(est.timeout_ms(1000), 1000)  # sem amostra: fallback
+        est.update(10.0)
+        # 10 + 4 * 5 = 30 ms, abaixo do piso
+        self.assertEqual(est.timeout_ms(1000), 100.0)
+        est.update(200.0)
+        # dev = 0.75 * 5 + 0.25 * 190 = 51.25; 33.75 + 4 * 51.25 = 238.75 ms
+        self.assertAlmostEqual(est.timeout_ms(1000), 238.75)
+
+    def test_invalid_min_timeout(self):
+        with self.assertRaises(ValueError):
+            RttEstimator(min_timeout_ms=-1)
+
     def test_invalid_beta(self):
         with self.assertRaises(ValueError):
             RttEstimator(beta=1.5)

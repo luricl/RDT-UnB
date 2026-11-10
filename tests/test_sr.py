@@ -128,6 +128,18 @@ class SrTest(unittest.TestCase):
         self.assertEqual(by_seq[1].retransmissions, 1)
         self.assertEqual(by_seq[1].rtt_estimated_ms, by_seq[0].rtt_estimated_ms)
 
+    def test_adaptive_timeout_floor_and_backoff(self):
+        # REQ 1 perdido duas vezes: o timer dele dobra a cada retransmissão.
+        server = FakeServer(drop={(1, 1), (1, 2)})
+        result = self.run_download(server, window=1, adaptive=True,
+                                   min_timeout_ms=20)
+        self.assertEqual(result.content, b"".join(SEGMENTS))
+        by_seq = {s.seq: s for s in result.segments}
+        # RTT local << 20 ms: depois da 1ª amostra, vale o piso.
+        self.assertEqual([by_seq[i].timeout_ms for i in (2, 3, 4)], [20] * 3)
+        self.assertEqual(by_seq[1].retransmissions, 2)
+        self.assertEqual(by_seq[1].timeout_ms, 80)  # 20 -> 40 -> 80
+
     def test_gives_up_after_max_retries(self):
         server = FakeServer(drop={(1, n) for n in range(1, 10)})
         with self.assertRaises(DownloadError) as ctx:
