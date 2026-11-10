@@ -27,7 +27,7 @@ def load(path):
 
 def compute(rows):
     size = [int(r["size_bytes"]) for r in rows]
-    rtt = [float(r["rtt_ms"]) for r in rows]
+    rtt = [float(r["rtt_ms"]) for r in rows if r["rtt_ms"]]
     thr = [float(r["throughput_kbps"]) for r in rows]
     total_bytes = sum(size)
     rtt_mean = statistics.fmean(rtt)

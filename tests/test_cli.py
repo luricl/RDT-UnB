@@ -10,6 +10,7 @@ import unittest
 
 from src.cli import DEFAULT_GBN_SR_WINDOW, parse_args
 from src.metrics import COLUMNS
+from src.rtt import DEFAULT_MIN_TIMEOUT_MS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = ["--server", "137.131.178.229", "--group", "grupo07"]
@@ -41,6 +42,10 @@ class ParseArgsTest(unittest.TestCase):
                                     "--alpha", "0.2", "--beta", "0.3"])
         self.assertTrue(config.adaptive)
         self.assertEqual((config.alpha, config.beta), (0.2, 0.3))
+        self.assertEqual(config.min_timeout_ms, DEFAULT_MIN_TIMEOUT_MS)
+        config = parse_args(BASE + ["--protocol", "sr", "--adaptive",
+                                    "--min-timeout", "50"])
+        self.assertEqual(config.min_timeout_ms, 50.0)
         self.assertFalse(parse_args(BASE).adaptive)
 
     def test_adaptive_requires_sr(self):
@@ -96,6 +101,7 @@ class ParseArgsTest(unittest.TestCase):
             ["--loss", "1.5"],
             ["--loss", "-0.1"],
             ["--timeout", "0"],
+            ["--min-timeout", "-1"],
             ["--port", "70000"],
         ):
             with self.subTest(extra=extra):

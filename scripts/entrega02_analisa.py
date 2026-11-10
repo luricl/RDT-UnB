@@ -56,7 +56,7 @@ def read_csv(path):
                 "seq": int(r["segment"]),
                 "ts": datetime.fromisoformat(r["timestamp"]).timestamp(),
                 "size": int(r["size_bytes"]),
-                "rtt": float(r["rtt_ms"]),
+                "rtt": float(r["rtt_ms"]) if r["rtt_ms"] else None,
                 "thr": float(r["throughput_kbps"]) if r["throughput_kbps"] else None,
                 "retx": int(r["retransmissions"]),
                 "timeout": r["timeout_occurred"].strip() == "1",

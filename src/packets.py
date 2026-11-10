@@ -196,7 +196,7 @@ class SegmentStats:
     seq: int
     received_at: float     # time.time() na chegada do DATA (mesmo relógio do Wireshark)
     size_bytes: int
-    rtt_ms: float          # do último REQ enviado até o DATA
+    rtt_ms: float          # do último REQ enviado até o DATA; None se houve retransmissão
     retransmissions: int   # REQs reenviados por timeout
     rtt_estimated_ms: float = None  # EWMA após este segmento (None: sem amostra)
     timeout_ms: float = None        # timeout em vigor para este segmento
@@ -224,6 +224,7 @@ class SegmentStats:
 class Download:
     content: bytes
     segments: list
+    spurious: int = 0  # retransmissões que se mostraram desnecessárias (só SR)
 
     @property
     def retransmissions(self):
