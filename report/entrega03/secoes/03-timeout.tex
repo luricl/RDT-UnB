@@ -1,0 +1,27 @@
+\section{Comparação entre timeout fixo e adaptativo}
+
+\preencher{Escolher GBN ou SR e registrar a justificativa da escolha. Executar
+o mesmo protocolo, com a mesma janela, arquivo, semente e condições, usando
+timeout fixo e adaptativo sob perda de 5\% e 10\%.}
+
+\begin{table}[H]
+  \centering
+  \caption{Comparação entre timeout fixo e adaptativo.}
+  \label{tab:timeout}
+  \begin{tabular}{llrrrr}
+    \toprule
+    Protocolo & Perda & Timeout & Retransmissões & Tempo total (s) &
+      Throughput médio (kbps) \\
+    \midrule
+    \preencher{GBN/SR} & 5\%  & fixo       & \preencher{n} & \preencher{s} & \preencher{kbps}\\
+    \preencher{GBN/SR} & 5\%  & adaptativo & \preencher{n} & \preencher{s} & \preencher{kbps}\\
+    \preencher{GBN/SR} & 10\% & fixo       & \preencher{n} & \preencher{s} & \preencher{kbps}\\
+    \preencher{GBN/SR} & 10\% & adaptativo & \preencher{n} & \preencher{s} & \preencher{kbps}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Interpretação}
+\preencher{Explicar em que situação o timeout adaptativo tem maior vantagem e
+em que situação o timeout fixo é suficiente. Relacionar os resultados às
+perdas, ao RTT e às retransmissões espúrias.}

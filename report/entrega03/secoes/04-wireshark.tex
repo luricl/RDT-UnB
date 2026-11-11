@@ -1,0 +1,193 @@
+\section{Análise Wireshark}
+
+A captura foi feita durante a transferência do arquivo \textit{large}
+(10\,485\,760 bytes, 20\,480 segmentos de 512 bytes) com o protocolo
+Selective Repeat, janela de 16 segmentos e timeout fixo de 70\,ms
+(\texttt{--protocol sr --window 16 --timeout 70}), no dia 09/11/2026. O arquivo
+\texttt{wireshark\_sr\_16\_70t.pcapng.gz} tem 61\,512 pacotes UDP e
+36,148\,s de duração, entre o cliente (\texttt{192.168.0.58}, porta 33584) e o
+servidor (\texttt{137.131.178.229}, porta 8080). O CSV da mesma execução é
+\texttt{metrics\_grupo07\_sr\_20261109\_213144.csv}.
+\subsection{Visão geral da sessão}
+
+A Figura~\ref{fig:wireshark-sessao} reúne os cinco momentos da sessão, do
+\texttt{HELLO} ao \texttt{DONE}. O \textit{Time} de cada pacote é relativo ao
+primeiro (\texttt{HELLO}).
+
+\begin{figure}[p]
+  \centering
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{wireshark/e3_hello.png}
+    \caption{\texttt{HELLO} (pacote 1, $t=0$), 47 bytes de dados com grupo,
+      tamanho de segmento e arquivo.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{wireshark/e3_ok_hello.png}
+    \caption{\texttt{OK} (pacote 2, $t=50{,}906$\,ms) com \texttt{file\_size},
+      \texttt{checksum}, \texttt{seed} e \texttt{total\_segments=20480}.}
+  \end{subfigure}
+
+  \medskip
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{wireshark/e3_primeiro_req.png}
+    \caption{Primeiro \texttt{REQ|seq=0} (pacote 3, $t=51{,}141$\,ms). Os
+      pacotes 3 a 18 são os 16 REQs da janela inicial, enviados em
+      $\approx 65\,\mu$s.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{wireshark/e3_fin.png}
+    \caption{\texttt{FIN|checksum=\ldots} (pacote 61\,511,
+      $t=36{,}123$\,s), enviado após o último segmento.}
+  \end{subfigure}
+
+  \medskip
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{wireshark/e3_done.png}
+    \caption{\texttt{DONE|ok=1|expected=\ldots} (pacote 61\,512,
+      $t=36{,}148$\,s), confirmando o MD5.}
+  \end{subfigure}
+  \caption{Visão geral da sessão completa: \texttt{HELLO} $\rightarrow$
+    \texttt{OK} $\rightarrow$ sequência de \texttt{REQ}/\texttt{DATA}
+    $\rightarrow$ \texttt{FIN} $\rightarrow$ \texttt{DONE}.}
+  \label{fig:wireshark-sessao}
+\end{figure}
+
+Os intervalos principais são:
+\begin{itemize}
+  \item \texttt{HELLO} $\rightarrow$ \texttt{OK}: 50,9\,ms, maior que o RTT de
+    dados (cerca de 26\,ms).
+  \item \texttt{OK} $\rightarrow$ primeiro \texttt{REQ}: 0,23\,ms.
+  \item Primeiro \texttt{REQ} $\rightarrow$ primeiro \texttt{DATA}
+    (pacote 19): 25,87\,ms, o RTT inicial da conexão.
+  \item Transferência: do pacote 3 ao 61\,510, aproximadamente 36,05\,s,
+    igual ao tempo total que o cliente reporta.
+  \item Último \texttt{REQ} $\rightarrow$ \texttt{FIN}: 21,2\,ms; \texttt{FIN}
+    $\rightarrow$ \texttt{DONE}: 25,2\,ms, cerca de um RTT.
+\end{itemize}
+
+\subsection{Eventos de retransmissão}
+
+O evento analisado é o do segmento 10\,371. A
+Figura~\ref{fig:wireshark-retransmissoes} mostra o \texttt{REQ|seq=10371}
+original e a retransmissão, ambos com 13 bytes de dados.
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{wireshark/e3_retransmissao_1_req.png}
+    \caption{REQ original: pacote 31\,139, $t=18{,}231653505$\,s.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{wireshark/e3_retransmissao_2_req.png}
+    \caption{REQ retransmitido: pacote 31\,184, $t=18{,}301913013$\,s.}
+  \end{subfigure}
+  \caption{Retransmissão do segmento 10\,371. Os dois pacotes estão marcados
+    na captura.}
+  \label{fig:wireshark-retransmissoes}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \caption{Evento de retransmissão do segmento 10\,371 medido na captura.}
+  \label{tab:retransmissao}
+  \begin{tabular}{lrr}
+    \toprule
+    Pacote & Frame & Tempo relativo (s)\\
+    \midrule
+    REQ original & 31\,139 & 18,231653505\\
+    REQ retransmitido & 31\,184 & 18,301913013\\
+    \midrule
+    $\Delta t$ & & 0,070259508 (70,26\,ms)\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+O intervalo de 70,26\,ms corresponde ao timeout fixo de 70\,ms configurado no
+cliente, com 0,26\,ms de excesso. Entre os dois
+pacotes o servidor segue respondendo a outros segmentos da janela, como
+esperado no Selective Repeat: só o segmento 10\,371 é reenviado.
+\preencher{Incluir um segundo evento de retransmissão (outro segmento, com REQ
+original, REQ retransmitido e $\Delta t$), pois o enunciado pede pelo menos
+dois.}
+
+\subsection{Correlação com o CSV}
+
+A Figura~\ref{fig:wireshark-csv} mostra o trecho do CSV do cliente onde o
+campo \texttt{retransmissions} vale 1 e \texttt{timeout\_occurred} vale 1.
+Nessas linhas o \texttt{rtt\_ms} fica vazio: um segmento retransmitido não
+gera amostra de RTT, o que evita a ambiguidade de Karn. O
+\texttt{timeout\_ms} permanece em 70\,ms e o \texttt{rtt\_estimated\_ms} não
+muda (26,112\,ms), pois não entrou amostra nova.
+
+\figura{wireshark/e3_csv_retransmissao.png}{0.95\linewidth}
+  {Linhas do CSV com segmentos retransmitidos: \texttt{rtt\_ms} vazio,
+   \texttt{retransmissions=1} e \texttt{timeout\_occurred=1}.}
+  {fig:wireshark-csv}
+
+A figura mostra a rajada dos segmentos 2885 a 2900 (16 segmentos, o tamanho
+da janela), por volta de 21:31:50. O evento do segmento 10\,371 da
+Figura~\ref{fig:wireshark-retransmissoes} está no mesmo arquivo:
+\begin{center}
+\small
+\texttt{10371,2026-11-09T21:32:03.241968-03:00,512,,26.046,70.000,55.478,1,1,16,sr,0}
+\end{center}
+Para alinhar os relógios, o segmento 0 serve de referência: o primeiro
+\texttt{DATA} chega a $t=77{,}016$\,ms na captura e o CSV o registra em
+21:31:45.013693, logo $t=0$ da captura equivale a
+$\approx$\,21:31:44.9367. Com esse deslocamento, a retransmissão do
+pacote 31\,184 ($t=18{,}3019$\,s) cai em $\approx$\,21:32:03.2386, a
+3,4\,ms do registro do CSV (21:32:03.241968). A diferença está dentro da
+imprecisão desse alinhamento (o instante exato do registro no cliente não é o
+do \texttt{sendto}).
+\preencher{Substituir a Figura~\ref{fig:wireshark-csv} por um print da linha
+do segmento 10\,371 (linha 10\,372 do arquivo, entre as retransmissões
+10\,371 a 10\,378), para que a imagem corresponda ao evento da
+Figura~\ref{fig:wireshark-retransmissoes}.}
+
+\subsection{Medição de RTT: Wireshark versus cliente}
+
+O RTT do segmento 0 foi medido na captura entre o \texttt{REQ|seq=0}
+(pacote 3, $t=0{,}051140958$\,s) e o primeiro \texttt{DATA} (pacote 19,
+$t=0{,}077015583$\,s):
+\[
+  \text{RTT}_{\text{Wireshark}} = 0{,}077015583 - 0{,}051140958
+  = 25{,}874625\ \text{ms}.
+\]
+
+\figura{wireshark/e3_wireshark_terminal.png}{0.95\linewidth}
+  {Saída do cliente ao final da transferência (resumo da sessão).}
+  {fig:terminal}
+
+\begin{table}[H]
+  \centering
+  \caption{RTT do segmento 0 no Wireshark e no CSV do cliente.}
+  \label{tab:rtt-wireshark}
+  \begin{tabular}{lrrr}
+    \toprule
+    Segmento & RTT Wireshark (ms) & RTT CSV (ms) & Diferença (ms)\\
+    \midrule
+    0 & 25,875 & 26,058 & 0,183\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+O CSV do cliente registra 26,058\,ms para o segmento 0, 0,183\,ms (0,7\%)
+acima do valor da captura. A diferença tem sinal e tamanho esperados:
+\begin{itemize}
+  \item O Wireshark marca o instante em que o pacote passa pela interface; o
+    cliente marca o tempo em espaço de usuário, antes do \texttt{sendto} e
+    depois do retorno do \texttt{recvfrom}. O cliente inclui a pilha do
+    sistema e o escalonamento do processo nos dois sentidos, e por isso mede
+    mais.
+\end{itemize}
+A medição do Wireshark é a que mais se aproxima do RTT de rede. Pelo resumo
+da Figura~\ref{fig:terminal}, o RTT médio no CSV é 28,1\,ms (mín.\ 24,1\,ms),
+e o estimado final é 27,0\,ms. O valor de 25,9\,ms do segmento 0 está na
+faixa observada, sem sinal de que o cliente distorça a medição. 
