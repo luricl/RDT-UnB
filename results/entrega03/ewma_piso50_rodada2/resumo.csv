@@ -1,0 +1,15 @@
+perda,alpha,beta,duracao_s,vazao_kbps,timeouts,retransmissoes,timeout_medio_ms,timeout_min_ms,rtt_estimado_final_ms,rtt_estimado_desvio_ms,csv
+0.0,0.125,0.25,42.281,1984.0,9,9,50.21,50.0,32.59,0.96,results/entrega03/ewma_piso50_rodada2/p00/a0.125_b0.25.csv
+0.0,0.05,0.25,33.308,2518.5,2,2,50.34,50.0,25.44,1.11,results/entrega03/ewma_piso50_rodada2/p00/a0.05_b0.25.csv
+0.0,0.25,0.25,33.3,2519.1,34,34,50.33,50.0,25.42,1.83,results/entrega03/ewma_piso50_rodada2/p00/a0.25_b0.25.csv
+0.0,0.5,0.25,34.942,2400.7,74,74,50.39,50.0,27.79,2.07,results/entrega03/ewma_piso50_rodada2/p00/a0.5_b0.25.csv
+0.0,0.125,0.1,37.682,2226.2,21,21,50.26,50.0,30.4,1.41,results/entrega03/ewma_piso50_rodada2/p00/a0.125_b0.1.csv
+0.0,0.125,0.5,37.232,2253.1,33,45,50.81,50.0,28.48,2.21,results/entrega03/ewma_piso50_rodada2/p00/a0.125_b0.5.csv
+0.0,1.0,1.0,35.456,2365.9,20,20,50.34,50.0,27.83,2.2,results/entrega03/ewma_piso50_rodada2/p00/a1_b1.csv
+0.1,0.125,0.25,92.722,904.7,2034,2267,56.43,50.0,26.21,1.24,results/entrega03/ewma_piso50_rodada2/p10/a0.125_b0.25.csv
+0.1,0.05,0.25,100.461,835.0,2146,2378,58.89,50.0,30.81,3.61,results/entrega03/ewma_piso50_rodada2/p10/a0.05_b0.25.csv
+0.1,0.25,0.25,96.425,870.0,2213,2443,59.08,50.0,28.44,6.83,results/entrega03/ewma_piso50_rodada2/p10/a0.25_b0.25.csv
+0.1,0.5,0.25,93.482,897.3,2054,2280,56.32,50.0,28.35,1.24,results/entrega03/ewma_piso50_rodada2/p10/a0.5_b0.25.csv
+0.1,0.125,0.1,93.377,898.4,2051,2279,56.45,50.0,28.15,1.24,results/entrega03/ewma_piso50_rodada2/p10/a0.125_b0.1.csv
+0.1,0.125,0.5,92.241,909.4,2045,2267,56.38,50.0,26.45,1.15,results/entrega03/ewma_piso50_rodada2/p10/a0.125_b0.5.csv
+0.1,1.0,1.0,93.756,894.7,2065,2293,56.73,50.0,29.59,1.88,results/entrega03/ewma_piso50_rodada2/p10/a1_b1.csv
