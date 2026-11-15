@@ -1,0 +1,19 @@
+cliente.py --server 137.131.178.229 --group grupo07 --file medium --protocol saw --loss 0.0 --seed 42 --timeout 1000.0
+
+RDT-UnB cliente | servidor=137.131.178.229:8080 grupo=grupo07 arquivo=medium
+protocolo=saw janela=1 segment_size=512 loss=0.0 timeout=1000.0ms adaptive=False
+handshake OK | file_size=5242880 total_segments=10240 segment_size=512 checksum=ff79a3ea02665142b2f27746cfe3da30 seed=rdtunb_grupo07_2026_11
+métricas salvas em results/metrics_grupo07_saw_20261115_185703.csv (10240 segmentos)
+--- resumo da sessão (lido de results/metrics_grupo07_saw_20261115_185703.csv) ---
+segmentos recebidos:      10240 (5242880 bytes)
+tempo total:              276.87 s (do 1º REQ ao último DATA)
+vazão efetiva:            151.5 kbps (bytes * 8 / tempo total)
+vazão média por segmento: 152.0 kbps (média da coluna throughput_kbps)
+retransmissões:           0 (0 segmentos com timeout)
+perda simulada:           0 segmentos
+RTT:                      médio 27.0 ms, mín 25.3 ms, máx 56.2 ms
+RTT estimado final:       26.9 ms
+arquivo salvo em data/medium.bin (5242880 bytes, 0 retransmissões)
+MD5 calculado=ff79a3ea02665142b2f27746cfe3da30 esperado=ff79a3ea02665142b2f27746cfe3da30
+DONE ok=1
+arquivo íntegro

@@ -1,0 +1,20 @@
+cliente.py --server 137.131.178.229 --group grupo07 --file large --protocol sr --loss 0.05 --seed 42 --timeout 1000.0 --window 16
+
+RDT-UnB cliente | servidor=137.131.178.229:8080 grupo=grupo07 arquivo=large
+protocolo=sr janela=16 segment_size=512 loss=0.05 timeout=1000.0ms adaptive=False
+handshake OK | file_size=10485760 total_segments=20480 segment_size=512 checksum=f0458b418ea6ca974c63f654baee06fc seed=rdtunb_grupo07_2026_11
+métricas salvas em results/metrics_grupo07_sr_20261115_174302.csv (20480 segmentos)
+--- resumo da sessão (lido de results/metrics_grupo07_sr_20261115_174302.csv) ---
+segmentos recebidos:      20480 (10485760 bytes)
+tempo total:              654.58 s (do 1º REQ ao último DATA)
+vazão efetiva:            128.2 kbps (bytes * 8 / tempo total)
+vazão média por segmento: 114.4 kbps (média da coluna throughput_kbps)
+retransmissões:           1045 (991 segmentos com timeout)
+perda simulada:           991 segmentos
+RTT:                      médio 34.2 ms, mín 32.1 ms, máx 55.9 ms
+RTT estimado final:       34.5 ms
+arquivo salvo em data/large.bin (10485760 bytes, 1045 retransmissões)
+retransmissões desnecessárias detectadas (DATA duplicado): 0
+MD5 calculado=f0458b418ea6ca974c63f654baee06fc esperado=f0458b418ea6ca974c63f654baee06fc
+DONE ok=1
+arquivo íntegro
