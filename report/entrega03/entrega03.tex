@@ -220,9 +220,13 @@ foi o melhor compromisso. Sem piso, 970 das 3\,237 retransmissões foram
 desnecessárias. Com 100 e 200\,ms quase não há retransmissão desnecessária,
 mas cada perda espera mais, e o tempo total sobe para 184 e 294\,s.
 
-Sem perda, repetimos o piso 0 e o de 50\,ms três vezes, intercalados. O piso
-0 teve de 1\,203 a 1\,737 retransmissões desnecessárias, e o de 50\,ms, de 14
-a 35, nas três repetições.
+Na campanha, sem perda, o piso 0 teve menos retransmissões que o de 50\,ms
+(1\,089 contra 1\,840), o contrário do esperado: sem piso o timeout fica mais
+perto do RTT. Como cada linha era uma execução só, não dava para saber se a
+diferença vinha do piso ou da rede naquele minuto. Por isso repetimos os dois
+pisos três vezes, intercalados (0, 50, 0, 50, 0, 50), e a Tabela~\ref{tab:piso}
+mostra a mediana. A ordem se repetiu nas três: o piso 0 teve de 1\,203 a
+1\,737 retransmissões desnecessárias, e o de 50\,ms, de 14 a 35.
 
 A execução da campanha usada nas Seções~3 e~5 teve 1\,840 retransmissões
 desnecessárias com o piso de 50\,ms. Nela a rede alternava blocos de 16
