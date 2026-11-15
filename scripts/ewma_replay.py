@@ -8,7 +8,7 @@ tirada de execuções com timeout fixo de 1000 ms (nenhuma amostra é cortada
 por timeout). Para cada amostra, o timeout que estava valendo antes dela é
 comparado com o RTT medido:
 
-- timeouts_espurios: amostras maiores que o timeout (o timer teria vencido
+- timeouts_prematuros: amostras maiores que o timeout (o timer teria vencido
   sem perda nenhuma);
 - timeout_medio_ms: quanto cada perda real custaria, em média.
 
@@ -17,7 +17,7 @@ o mesmo RTT com +STEP_MS no terço do meio, como o "delay adicional" do
 cenário surpresa ligado e depois desligado. Nele, colunas a mais medem a
 reação do par:
 
-- espurios_apos_subida: espúrios nas REACTION amostras seguintes à subida;
+- prematuros_apos_subida: timeouts prematuros nas REACTION amostras seguintes à subida;
 - amostras_ate_90pct: quantas amostras o EstimatedRTT leva para cobrir 90%
   da subida;
 - timeout_apos_descida_ms: timeout médio nas REACTION amostras depois que o
@@ -71,11 +71,11 @@ def replay(trace, alpha, beta, floor, pulse=None):
         if (pulse and i >= pulse[0] and converged is None
                 and est.estimated_ms >= trace[pulse[0] - 1] + 0.9 * STEP_MS):
             converged = i - pulse[0] + 1
-    result = {"timeouts_espurios": spurious,
-              "espurios_pct": round(100 * spurious / (len(trace) - 1), 2),
+    result = {"timeouts_prematuros": spurious,
+              "prematuros_pct": round(100 * spurious / (len(trace) - 1), 2),
               "timeout_medio_ms": round(statistics.fmean(timeouts), 1)}
     if pulse:
-        result["espurios_apos_subida"] = after_rise
+        result["prematuros_apos_subida"] = after_rise
         result["amostras_ate_90pct"] = converged
         result["timeout_apos_descida_ms"] = round(statistics.fmean(after_drop), 1)
     return result
@@ -102,7 +102,7 @@ def main():
                     "amostras": len(trace),
                     "rtt_mediano_ms": round(statistics.median(trace), 1),
                     "piso_ms": floor, "alpha": alpha, "beta": beta,
-                    "espurios_apos_subida": "", "amostras_ate_90pct": "",
+                    "prematuros_apos_subida": "", "amostras_ate_90pct": "",
                     "timeout_apos_descida_ms": "",
                     **replay(trace, alpha, beta, floor, pulse),
                 })

@@ -54,15 +54,15 @@ def scenarios():
     s += [(f"sr_piso{f}_p00", sr16(0.0, True, floor=f)) for f in (0, 100, 200)]
     s += [("gbn_fixo_p00", dict(protocol="gbn", window=16, file="large", loss=0.0)),
           ("saw_large_p00", dict(protocol="saw", file="large", loss=0.0))]
+    # 5% de perda; o adaptativo é a execução capturada no Wireshark.
+    s += [("sr_adapt_p05", dict(sr16(0.05, True), capture=True)),
+          ("sr_fixo_p05", sr16(0.05))]
     # 10% de perda: piso, varredura de alfa e beta, fixo.
     s += [("sr_adapt_p10", sr16(0.10, True))]
     s += [(f"sr_piso{f}_p10", sr16(0.10, True, floor=f)) for f in (0, 100, 200)]
     s += [(f"sr_a{a:g}_b{b:g}_p10", sr16(0.10, True, alpha=a, beta=b))
           for a, b in PAIRS]
     s += [("sr_fixo_p10", sr16(0.10))]
-    # 5% de perda; o adaptativo é a execução capturada no Wireshark.
-    s += [("sr_adapt_p05", dict(sr16(0.05, True), capture=True)),
-          ("sr_fixo_p05", sr16(0.05))]
     # Entrega 2 (small), intercalada por perda; saw_w1_p00 é também o small
     # da Entrega 1.
     for loss in (0.0, 0.05, 0.10):
