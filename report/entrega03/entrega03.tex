@@ -95,7 +95,9 @@ O throughput do SAW foi de 140,6\,kbit/s no \emph{small}, 151,5\,kbit/s no
 \emph{medium} e 140,9\,kbit/s no \emph{large}, praticamente o limite de um
 segmento por RTT ($512 \cdot 8 / 29\text{ ms} \approx 141$\,kbit/s). O CSV mostra
 o motivo: a soma dos RTTs ocupa 99,9\% do tempo de cada sessão. O cliente passa quase todo o
-tempo esperando o \texttt{DATA} do único \texttt{REQ} em voo.
+tempo esperando o \texttt{DATA} do único \texttt{REQ} em voo. O \emph{medium}
+ficou um pouco acima dos outros porque o RTT médio dessa execução foi menor
+(26,8\,ms contra 29,0\,ms).
 
 \subsection{Entrega 2: janela deslizante}
 
@@ -218,7 +220,11 @@ $\beta=0{,}25$). ``Desnecessárias'' são as retransmissões em que o
 Com 10\% de perda, que é onde o timeout adaptativo importa, o piso de 50\,ms
 foi o melhor compromisso. Sem piso, 970 das 3\,237 retransmissões foram
 desnecessárias. Com 100 e 200\,ms quase não há retransmissão desnecessária,
-mas cada perda espera mais, e o tempo total sobe para 184 e 294\,s.
+mas cada perda espera mais, e o tempo total sobe para 184 e 294\,s. Com
+100\,ms, as 2\,700 retransmissões passam das $\sim$2\,270 perdas simuladas sem
+aparecerem como desnecessárias: são segmentos reenviados mais de uma vez, e o
+cliente só reconhece a retransmissão desnecessária quando o segmento foi
+reenviado uma única vez.
 
 Na campanha, sem perda, o piso 0 teve menos retransmissões que o de 50\,ms
 (1\,089 contra 1\,840), o contrário do esperado: sem piso o timeout fica mais
@@ -349,8 +355,9 @@ uma é um \texttt{REQ} a mais e um \texttt{DATA} duplicado.
 Sem perda, o timeout fixo basta. Um timer de 1\,s nunca vence quando nada se
 perde, e o fixo terminou em 49,5\,s, contra 56,6\,s do adaptativo, que fez
 1\,840 retransmissões desnecessárias pelos blocos lentos da
-Seção~\ref{sec:piso}. O
-timeout adaptativo compensa quando há perda, e o ganho cresce com a taxa de
+Seção~\ref{sec:piso}. Parte da diferença também é da rede: o RTT médio foi de
+38,6\,ms na execução fixa e de 42,1\,ms na adaptativa, o que sozinho reduz a
+vazão em 8\%. O timeout adaptativo compensa quando há perda, e o ganho cresce com a taxa de
 perda e com a distância entre o timeout fixo e o RTT. Um timeout fixo
 escolhido perto do RTT também funcionaria, mas teria de ser recalibrado à mão
 quando a rede mudasse.
@@ -532,23 +539,36 @@ perda, a comparação do SR está na Tabela~\ref{tab:fixo}.}
 \figura{../imgs/comparacao_throughput.png}{0.8\linewidth}{Throughput médio dos
 protocolos da Tabela~\ref{tab:final}.}{fig:barras}
 
-A janela é o que muda o desempenho. Com 16 segmentos em voo, GBN e SR ficam
-entre 1\,480 e 1\,840\,kbit/s, de 10 a 13 vezes o SAW, e terminam o arquivo em
-menos de um minuto, contra quase dez do SAW. O SAW fica preso a um segmento
-por RTT: $512 \cdot 8 / 28{,}9\text{ ms} \approx 142$\,kbit/s, praticamente os
-140,9 medidos.
+A janela é o que muda o desempenho. Sem perda, um protocolo com $N$
+segmentos em voo envia no máximo $N \cdot L$ bits por RTT
+(Kurose~\cite{kurose}, Seção~3.4), porque o tempo de transmissão de 512\,B é
+desprezível perto do RTT. Com o RTT médio de cada execução, o SAW deveria ter
+141,0\,kbit/s e mediu 140,9; o SR fixo deveria ter 1\,695,8 e mediu 1\,694,2.
+Nas janelas da Entrega~2 a conta também fecha: com $N=4$, 8 e 16, o SR mediu
+342,4, 1\,211,9 e 2\,000,6\,kbit/s, contra 342,6, 1\,214,6 e 2\,009,0
+previstos. GBN e SR ficam de 10 a 13 vezes acima do SAW e terminam o arquivo em
+menos de um minuto, contra quase dez.
 
-Sem perda, GBN e SR com timeout fixo empatam: a diferença entre eles (8\%) é do
-tamanho da variação entre execuções. As 48 retransmissões do GBN são 3
-timeouts da base, cada um reenviando a janela de 16. O SR adaptativo ficou
-abaixo dos dois pelas retransmissões desnecessárias da Seção~\ref{sec:piso}. A diferença
-entre os protocolos aparece com perda: na Entrega~2, com 10\% de perda e
-$N=16$, o GBN fez 3\,556 retransmissões e o SR, 220.
+Dois resultados se afastam da teoria. O GBN mediu 1\,838,5\,kbit/s, abaixo dos
+1\,967,2 previstos, porque teve 3 timeouts de 1\,s causados por perdas reais
+da rede; cada um reenviou a janela de 16 (as 48 retransmissões). Descontando
+esses 3\,s, a previsão cai para 1\,838. Além disso, sem perda GBN e SR
+deveriam empatar, mas o GBN ficou 8\% acima do SR fixo. A diferença é da rede:
+o RTT médio foi de 33,3\,ms na execução do GBN e de 38,6\,ms na do SR, que pegou
+mais blocos lentos. O SR adaptativo ficou abaixo dos dois pelas retransmissões
+desnecessárias da Seção~\ref{sec:piso} e por um RTT médio ainda maior
+(42,1\,ms).
+
+A diferença entre os protocolos aparece com perda. Na Entrega~2, com 10\% de
+perda, o GBN fez 920, 1\,840 e 3\,556 retransmissões com $N=4$, 8 e 16, e o
+SR fez 220 em todos os casos. A razão (4,2, 8,4 e 16,2) acompanha $N$, como
+esperado de um protocolo que reenvia a janela inteira a cada timeout.
 
 % ======================= 6 ===========================================
 \section{Conclusão}
 
-No ambiente do projeto (rede real, RTT de 29 a 34\,ms na campanha), o SR com
+No ambiente do projeto (rede real, RTT mediano de 29 a 34\,ms na campanha,
+acima dos $\sim$22\,ms citados no enunciado), o SR com
 $N=16$ e timeout adaptativo foi o melhor protocolo. Sem perda, GBN e SR com a
 mesma janela empatam, porque quase não há o que retransmitir. Com perda, o SR
 reenvia só o segmento atrasado, enquanto o GBN reenvia a janela: com 10\% de
