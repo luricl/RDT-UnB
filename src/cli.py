@@ -220,7 +220,7 @@ def main(argv=None):
     print(f"arquivo salvo em {path} ({len(result.content)} bytes, "
           f"{result.retransmissions} retransmissões)")
     if config.protocol == "sr":
-        print(f"retransmissões espúrias detectadas (DATA duplicado): "
+        print(f"retransmissões desnecessárias detectadas (DATA duplicado): "
               f"{result.spurious}")
 
     print(f"MD5 calculado={end.md5} esperado={end.expected}")

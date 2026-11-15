@@ -71,8 +71,9 @@ class SawTest(unittest.TestCase):
         self.assertEqual([s.retransmissions for s in result.segments], [0, 2, 0])
         self.assertEqual([s.timeout_occurred for s in result.segments],
                          [False, True, False])
-        # RTT conta a partir do último REQ, não inclui os 2 timeouts de 100 ms.
-        self.assertLess(result.segments[1].rtt_ms, 100)
+        # Karn: segmento retransmitido não tem amostra de RTT.
+        self.assertIsNone(result.segments[1].rtt_ms)
+        self.assertLess(result.segments[0].rtt_ms, 100)
 
     def test_csv_fields_are_filled(self):
         result = self.run_download(FakeServer(drop={(1, 1)}))
@@ -83,8 +84,9 @@ class SawTest(unittest.TestCase):
             self.assertGreater(s.throughput_kbps, 0)
         # elapsed inclui o timeout de 100 ms; o RTT não.
         self.assertGreaterEqual(retx.elapsed_ms, 100)
+        self.assertIsNone(retx.rtt_ms)
         self.assertLess(retx.throughput_kbps,
-                        retx.size_bytes * 8 / retx.rtt_ms)
+                        retx.size_bytes * 8 / first.rtt_ms)
         # Karn: segmento retransmitido não altera a estimativa EWMA.
         self.assertEqual(retx.rtt_estimated_ms, first.rtt_estimated_ms)
         self.assertIsNotNone(last.rtt_estimated_ms)
