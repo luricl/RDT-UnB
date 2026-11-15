@@ -1,9 +1,14 @@
+% =====================================================================
+%  RDT-UnB — Relatório final (Entregas 1, 2 e 3) — CIC0236 TR2 2026/2
+%  Limite: 15 páginas. \pend{...} marca em vermelho trechos pendentes (nenhum).
+%  Figuras em ../imgs/ (geradas pelos scripts em scripts/graph_scripts/).
+% =====================================================================
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[T1]{fontenc}
-\usepackage{lmodern}
 \usepackage[utf8]{inputenc}
 \usepackage[brazil]{babel}
+\usepackage{lmodern}
 \usepackage[a4paper,margin=2.2cm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
@@ -12,73 +17,727 @@
 \usepackage{float}
 \usepackage{subcaption}
 \usepackage{xcolor}
-\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
-
-\graphicspath{{../imgs/}}
-\addto\captionsbrazil{\renewcommand{\refname}{Referências bibliográficas}}
 \setlength{\emergencystretch}{3em}
 
-\newcommand{\preencher}[1]{\textcolor{red}{[#1]}}
+\addto\captionsbrazil{\renewcommand{\refname}{Referências bibliográficas}}
+
+\newcommand{\pend}[1]{\textcolor{red}{[#1]}}
+
+% Figura com quadro de espaço reservado enquanto o arquivo não existe.
 \newcommand{\figura}[4]{%
   \begin{figure}[H]
     \centering
-    \IfFileExists{../imgs/#1}%
+    \IfFileExists{#1}%
       {\includegraphics[width=#2]{#1}}%
-      {\fbox{\parbox[c][4cm][c]{#2}{\centering\textcolor{red}{\ttfamily ../imgs/\detokenize{#1}}}}}%
+      {\fbox{\parbox[c][4cm][c]{#2}{\centering\textcolor{red}{\ttfamily\detokenize{#1}}}}}%
     \caption{#3}
     \label{#4}
   \end{figure}}
 
 \begin{document}
 
+% ======================= CAPA ========================================
 \begin{titlepage}
-  \begin{center}
-    \includegraphics[width=0.22\textwidth]{../imgs/logo_unb.png}
+  \centering
+  \IfFileExists{../imgs/logo_unb.png}{\includegraphics[width=0.22\textwidth]{../imgs/logo_unb.png}\\[0.6em]}{}
+  {\large\textbf{Universidade de Brasília}}\\
+  Departamento de Ciência da Computação\\
+  CIC0236 Teleinformática e Redes 2
 
-    \vspace{1em}
-    {\Large\textbf{Universidade de Brasília}}\\
-    {\large Departamento de Ciência da Computação}\\
-    {\large CIC0236 Teleinformática e Redes 2}
+  \vfill
+  {\LARGE\textbf{RDT-UnB: relatório final}}\\[0.8em]
+  {\large Evolução de SAW a protocolos de janela com RTT adaptativo}
+  \vfill
 
-    \vfill
-    {\LARGE\textbf{RDT-UnB: relatório final}}\\[1em]
-    {\large Evolução de SAW a protocolos de janela com RTT adaptativo}
+  \begin{tabular}{ll}
+    231013510 & Atila Sousa Fernandes\\
+    231013645 & Lucas Adeodato de Oliveira\\
+    222005395 & Lurian Correia Lima
+  \end{tabular}
 
-    \vfill
-    \begin{tabular}{rl}
-      231013510 & Atila Sousa Fernandes\\
-      231013645 & Lucas Adeodato de Oliveira\\
-      222005395 & Lurian Correia Lima\\
-    \end{tabular}
-
-    \vfill
-    {\large \today}
-  \end{center}
+  \vfill
+  10 de novembro de 2026
 \end{titlepage}
 
 \pagenumbering{roman}
 \tableofcontents
-\newpage
+\clearpage
 \pagenumbering{arabic}
 
-\input{secoes/01-introducao}
-\input{secoes/02-rtt-adaptativo}
-\input{secoes/03-timeout}
-\input{secoes/04-wireshark}
-\input{secoes/05-visao-integrada}
-\input{secoes/06-conclusao}
+% ======================= 1 ===========================================
+\section{Introdução e evolução do projeto}
 
+O projeto partiu de um servidor UDP tratado como caixa-preta
+(\texttt{137.131.178.229:8080}), que só envia um \texttt{DATA} quando recebe um
+\texttt{REQ} (\emph{pull-based}). Sobre ele, construímos um cliente que acrescenta
+confiabilidade ao UDP~\cite{rfc768} com os mecanismos das Seções~3.4 e~3.5 de
+Kurose~\&~Ross~\cite{kurose}: números de sequência, ACK, temporizador,
+retransmissão e verificação de integridade por MD5~\cite{rfc1321}. O cliente
+evoluiu em três etapas. Cada etapa resolveu o gargalo que os dados da etapa
+anterior expuseram: primeiro o RTT, depois o custo de cada perda e, por fim, o
+próprio timeout.
+
+\subsection{Entrega 1: Stop-and-Wait}
+
+O cliente SAW faz o handshake \texttt{HELLO}/\texttt{OK}, que negocia o
+\texttt{segment\_size} (512\,B) e informa o \texttt{checksum} do arquivo. Em
+seguida, pede um segmento por vez (\texttt{REQ} $\to$ \texttt{DATA} $\to$
+\texttt{ACK}), com timeout fixo de 1000\,ms e até 10 retransmissões, e encerra
+com \texttt{FIN|checksum=<md5>} e \texttt{DONE|ok=1}. O \texttt{DATA} é separado
+só nas três primeiras barras, porque o payload binário pode conter o byte
+\texttt{|}. Cada sessão gera um CSV com uma linha por segmento (RTT, throughput,
+retransmissões, timeout, perda simulada), com \emph{timestamps} do relógio do
+sistema, para correlacionar com o Wireshark.
+
+O throughput foi de 155,9, 144,2 e 136,4\,kbit/s, entre 99,4\% e 99,9\% do
+teórico $L/\mathrm{RTT}_{\text{médio}}$. O resultado central foi quantitativo: a
+soma dos RTTs ocupava $\geq$\,99,4\% do tempo de cada sessão, ou seja, o cliente
+passava quase todo o tempo esperando. A vazão caiu de arquivo para arquivo
+porque as execuções mais longas atravessaram dois episódios de congestionamento
+da rede (RTT de 25\,ms subindo para 100–200\,ms), não por causa do cliente.
+
+\subsection{Entrega 2: janela deslizante}
+
+Para sair do limite de um segmento por RTT, implementamos o Go-Back-N (GBN) e o
+Selective Repeat (SR), com até $N$ \texttt{REQ}s em voo. No GBN, o receptor só
+aceita a base; no timeout, a janela inteira é reenviada. No SR, cada segmento
+tem seu próprio temporizador e os segmentos fora de ordem ficam num
+\emph{buffer}. A perda foi simulada descartando cada \texttt{DATA} recebido com
+probabilidade $P$ (\texttt{--loss}, semente fixa \texttt{--seed}), e não
+omitindo o \texttt{ACK}: o servidor não usa o \texttt{ACK} (na Entrega~2
+respondia \texttt{ERROR|msg=tipo\_desconhecido\_ACK}; na captura de 09/11 não
+responde nada), então só a falta do \texttt{DATA} dispara a retransmissão. Testamos janelas de 4, 8 e 16 com 0, 5 e 10\% de perda
+(21 cenários, arquivo small).
+
+Sem perda, o SR com $N=16$ chegou a 2\,132\,kbit/s, 11,7 vezes o SAW. Com 10\% de
+perda e $N=16$, o GBN reenviou 16,0 segmentos por erro, a janela inteira (3\,878
+retransmissões), contra 1,21 do SR (234). O GBN levou 251\,s, e o SR, 109\,s.
+
+As dificuldades foram tanto de engenharia quanto de rede:
+\begin{itemize}[nosep]
+  \item GBN e SR foram desenvolvidos em branches separados, e cada um marcava o
+    outro como ``não implementado'' na interface de linha de comando; a integração exigiu
+    resolver esse conflito.
+  \item Um servidor de teste local que embaralhava a ordem das respostas fazia o
+    GBN levar 250\,s em vez de 1\,s sem perda. Isso mostrou, na prática, que o
+    GBN descarta todo \texttt{DATA} fora de ordem.
+  \item No Windows, a saída do cliente em cp1252 impediu o script de execução de
+    reconhecer ``arquivo íntegro'', e uma reexecução sobrescreveu 11 logs com
+    MD5. Corrigimos forçando UTF-8 no processo filho.
+  \item Num dos dias, o servidor encerrava toda sessão após $\sim$35 segmentos,
+    e os dados válidos ficaram restritos à sessão completa de 26/10.
+\end{itemize}
+
+\subsection{Entrega 3: RTT adaptativo}
+
+As Entregas~1 e~2 mostraram que o timeout fixo de 1\,s era o maior custo de cada
+perda: $\sim$39 RTTs parados por erro. A primeira versão do timeout adaptativo
+($\text{EstimatedRTT} + 4\,\text{DevRTT}$) piorou o problema. Com a rede
+estável, o DevRTT tendia a zero e o timeout ``colava'' no RTT ($\sim$28\,ms).
+Segmentos um pouco mais lentos estouravam o timer, e o filtro de Karn
+descartava justamente essas amostras altas. O estimador nunca via o RTT subir, e
+o resultado foram milhares de retransmissões espúrias sem nenhuma perda (3\,987
+no large, já com \emph{backoff}). Chamamos de espúria a retransmissão causada
+por um timeout prematuro (Kurose~\cite{kurose}, Seção~3.4.1): o \texttt{DATA}
+só estava atrasado e acaba chegando duplicado.
+
+Resolvemos com três mecanismos: um piso no timeout (50\,ms), \emph{backoff}
+exponencial por segmento e detecção de retransmissão espúria por
+\texttt{DATA} duplicado, que recupera as amostras lentas sem violar o filtro de
+Karn. Como o RTT mediano da rede variou de 26 a 93\,ms na mesma tarde,
+comparamos $\alpha$ e $\beta$ reproduzindo o mesmo traço de RTT
+em todas as configurações, em vez de depender de execuções em
+momentos diferentes.
+
+% \subsection{Linha do tempo do Projeto}
+
+% \begin{table}[H]
+% \centering\small
+% \begin{tabular}{p{2.1cm}p{12.4cm}}
+% \toprule
+% Data & Decisão, experimento ou correção \\
+% \midrule
+% 14/10 & Cliente SAW com handshake, CSV de métricas e verificação MD5; servidor
+%         fora do ar à noite, com testes adiados. \\
+% 15/10 & Execuções SAW (small, medium, large) com MD5 conferido. A análise mostra
+%         que o tempo é $\geq$\,99,4\% espera de RTT e que episódios de
+%         congestionamento explicam a queda de vazão nos arquivos maiores. \\
+% 25/10 & Integração de GBN e SR num único cliente. Um servidor falso local revela
+%         que reordenação de \texttt{DATA} derruba o GBN, e ele passa a
+%         responder em ordem (FIFO), como o real. \\
+% 26/10 & Sessão completa dos 21 cenários da Entrega 2 (15:00–15:42). \\
+% 27/10 & Bug de codificação cp1252 no Windows sobrescreve logs (corrigido). O
+%         servidor corta sessões em $\sim$35 segmentos e os dados de 26/10 são
+%         mantidos. \\
+% 09/11 & Captura Wireshark do SR ($N=16$, timeout fixo de 70\,ms, large): as
+%         34 retransmissões são espúrias, causadas por picos de RTT de 70 a
+%         102\,ms. Execução do GBN ($N=16$, timeout fixo de 80\,ms) para a tabela
+%         integrada. \\
+% 10/11 & Implementação do Timeout dinâmico. Experimento com o piso (0, 50, 100 e
+%         200\,ms) leva à escolha de 50\,ms. Uma execução com a rede lenta
+%         mostra a cegueira causada pelo filtro de Karn e motiva a detecção de
+%         espúrias. Comparação fixo $\times$ adaptativo em pares consecutivos. \\
+% \bottomrule
+% \end{tabular}
+% \caption{Principais decisões do projeto.}
+% \end{table}
+
+% ======================= 2 ===========================================
+\section{RTT adaptativo — implementação}
+
+O estimador de RTT é usado pelo SR quando o cliente roda com \texttt{--adaptive}. O
+fluxo é o seguinte:
+\begin{itemize}[nosep]
+  \item Até a primeira amostra, vale o timeout inicial (\texttt{--timeout},
+    1000\,ms). Na primeira amostra, $\text{EstimatedRTT} = \text{SampleRTT}$ e
+    $\text{DevRTT} = \text{SampleRTT}/2$, como na RFC~6298~\cite{rfc6298}.
+  \item Cada \texttt{REQ} novo usa o timeout corrente, que é gravado na coluna
+    \texttt{timeout\_ms} do CSV.
+  \item \textbf{Amostras ignoradas (Karn):} como no TCP~\cite{kurose}, o estimador
+    só é atualizado se o segmento não foi retransmitido. Nos demais,
+    \texttt{rtt\_ms} fica vazio, porque o \texttt{DATA} pode responder a
+    qualquer um dos \texttt{REQ}s enviados.
+  \item \textbf{Amostras recuperadas:} quando um segmento foi retransmitido
+    \emph{uma vez} e chega um segundo \texttt{DATA} dele, o primeiro respondia
+    ao \texttt{REQ} original. O tempo desde esse \texttt{REQ} vira uma amostra
+    válida, e a retransmissão é contada como espúria. Esse mecanismo não é do TCP:
+    ele aproveita o fato de o servidor responder a todo \texttt{REQ}.
+  \item \textbf{\emph{Backoff}:} a cada retransmissão, o timer daquele
+    segmento dobra, como no TCP (Kurose~\cite{kurose}, Seção~3.5.4), até 60\,s.
+\end{itemize}
+
+\subsection{Estimativa EWMA}
+
+A fórmula implementada é
+\begin{equation}
+  \text{EstimatedRTT} \leftarrow (1-\alpha)\,\text{EstimatedRTT} + \alpha\,\text{SampleRTT},
+\end{equation}
+\begin{equation}
+  \text{DevRTT} \leftarrow (1-\beta)\,\text{DevRTT} + \beta\,\lvert \text{SampleRTT} - \text{EstimatedRTT}\rvert,
+\end{equation}
+\begin{equation}
+  \text{Timeout} = \max\!\bigl(\text{MinTimeout},\; \text{EstimatedRTT} + 4\,\text{DevRTT}\bigr),
+\end{equation}
+com $\alpha = 0{,}125$, $\beta = 0{,}25$ e $\text{MinTimeout} = 50$\,ms (opções
+\texttt{--alpha}, \texttt{--beta} e \texttt{--min-timeout}). O DevRTT é
+atualizado com a estimativa \emph{anterior}, antes de o EstimatedRTT mudar, na
+ordem da RFC~6298.
+
+\subsection{Justificativa dos parâmetros}
+
+\textbf{Piso de 50\,ms.} Kurose~\cite{kurose} recomenda que o timeout fique
+acima do EstimatedRTT, com uma margem proporcional à flutuação do RTT, para
+evitar retransmissões desnecessárias; é o papel do $4\,\text{DevRTT}$. Na nossa
+rede, porém, o DevRTT cai a $\sim$0,5\,ms enquanto o RTT ainda oscila até
+$\sim$40\,ms, e essa margem deixa de cobrir a variação. O piso garante uma
+margem mínima. Variamos só o piso (SR, $N=16$, large; Tabela~\ref{tab:piso}).
+Sem piso, o timeout mediano foi de 28,7\,ms, e houve 3\,987 timeouts espúrios em
+20\,480 segmentos. Com 50\,ms, eles caíram para 16, porque o p99 do RTT nessa
+execução era 39,5\,ms. Pisos maiores não reduzem mais nada sem perda, mas
+encarecem cada perda real: com 10\% de perda, o tempo total subiu de 94\,s
+(50\,ms) para 169\,s (100\,ms) e 286\,s (200\,ms). Por isso escolhemos o menor
+piso que elimina os espúrios. A detecção de espúrias não substitui o piso: com
+ela e sem piso, uma execução de teste teve 3\,980 retransmissões desnecessárias,
+contra 90 com o piso, na mesma rede.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{rrrrrr}
+\toprule
+Perda & Piso (ms) & Tempo (s) & Vazão (kbit/s) & Retransmissões & Extras (espúrias) \\
+\midrule
+0\%  & 0   & 36,7  & 2\,288,4 & 3\,987 & 3\,987 \\
+0\%  & 50  & 34,9  & 2\,402,7 & 16     & 16 \\
+0\%  & 100 & 39,5  & 2\,121,4 & 0      & 0 \\
+0\%  & 200 & 38,1  & 2\,202,4 & 0      & 0 \\
+\midrule
+10\% & 0   & 78,7  & 1\,065,4 & 7\,109 & 5\,072 \\
+10\% & 50  & 94,3  & 889,8    & 2\,267 & 222 \\
+10\% & 100 & 168,7 & 497,3    & 2\,272 & 236 \\
+10\% & 200 & 285,9 & 293,4    & 2\,267 & 223 \\
+\bottomrule
+\end{tabular}
+\caption{Efeito do piso do timeout (SR, $N=16$, large, $\alpha=0{,}125$, $\beta=0{,}25$).
+``Extras'' são as retransmissões além dos segmentos com perda simulada.}
+\label{tab:piso}
+\end{table}
+
+Executar cada par \textbf{$\alpha$ e $\beta$} na rede real não isolou o efeito
+% dos parâmetros. Na varredura com piso, entre 17h29 e 17h35, o RTT mediano subiu
+dos parâmetros. Na varredura com piso, o RTT mediano subiu
+para 83–93\,ms e contaminou justamente os pares 0,25/0,25, 0,5/0,25 e 0,125/0,1.
+Por isso, comparamos os pares sobre os mesmos dados: aplicamos as
+Equações~(1)–(3), com cada par, à sequência de RTTs medida numa execução real
+com timeout fixo de 1\,s e sem perda. Nessa execução nenhum segmento foi
+retransmitido, então todas as amostras são válidas. Contamos como timeout
+espúrio cada amostra maior que o timeout calculado naquele instante. Para ver a
+reação a uma mudança na rede, repetimos o cálculo somando 100\,ms aos RTTs do
+terço do meio da sequência (Tabela~\ref{tab:replay}).
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Timeouts espúrios} & Amostras até & Timeout após \\
+\cmidrule(lr){2-3}
+$\alpha$ / $\beta$ & rede estável & após a subida & seguir a subida & a descida (ms) \\
+\midrule
+0,05 / 0,25  & 265     & 1  & 44 & 131 \\
+0,125 / 0,25 & 334     & 3  & 17 & 82 \\
+0,25 / 0,25  & 425     & 3  & 8  & 66 \\
+0,5 / 0,25   & 624     & 4  & 4  & 58 \\
+0,125 / 0,1  & 398     & 3  & 17 & 79 \\
+0,125 / 0,5  & 409     & 4  & 17 & 84 \\
+1 / 1        & 2\,614  & 13 & 1  & 56 \\
+\bottomrule
+\end{tabular}
+\caption{Reprodução de traço: mesmos RTTs para todos os pares (execução com timeout fixo e sem perda da Tabela~4;
+o degrau usa piso de 50\,ms).}
+\label{tab:replay}
+\end{table}
+
+\begin{itemize}[nosep]
+  \item Um $\alpha$ pequeno filtra melhor o ruído: com $\alpha = 0{,}05$ houve
+    de 4 a 21\% menos espúrios nos traços estáveis (265 contra 334 no traço
+    sem perda).
+  \item O custo aparece quando um atraso passageiro termina. O EstimatedRTT
+    demora 44 amostras para seguir a subida e, depois que o RTT volta a
+    $\sim$26\,ms, o timeout continua em 131\,ms (contra 82\,ms com
+    $\alpha = 0{,}125$). Cada perda nesse trecho custa $\sim$1,6 vez mais.
+  \item $\alpha \geq 0{,}25$ segue a rede rápido demais e imita o ruído (425 a
+    2\,614 espúrios).
+  \item $\beta = 0{,}25$ teve menos espúrios que 0,1 e 0,5 nos três traços
+    desta entrega.
+  \item Com o piso de 50\,ms, os traços estáveis quase não geram espúrios com
+    nenhum par (0 a 7): o piso domina enquanto o RTT está baixo, e a escolha de
+    $\alpha,\beta$ pesa sobretudo quando o RTT varia.
+\end{itemize}
+
+Mantivemos $\alpha = 0{,}125$ e $\beta = 0{,}25$, os valores da RFC~6298 e o
+padrão do cliente. Com o piso, a vantagem do $\alpha = 0{,}05$ em rede estável
+desaparece. Já a recuperação mais rápida depois de um atraso vale nos dois
+casos, e esses atrasos acontecem de fato na rede do projeto: a captura da
+Seção~4 registrou três picos de 70 a 102\,ms em 36\,s. Uma varredura real com
+os mesmos sete pares, feita antes do piso, confirma que o piso pesa mais
+que $\alpha$ e $\beta$: sem perda, todos os pares tiveram de 7\,432 a 10\,162
+timeouts, com o timeout médio entre 27 e 29\,ms. Já com o piso, a varredura
+real foi feita duas vezes. Na segunda, com a rede estável, todos os pares
+ficaram entre 33 e 42\,s sem perda e entre 92 e 101\,s com 10\%. A ordem dos
+pares mudou de uma rodada para a outra e acompanhou o RTT mediano de cada
+execução, não o par: o 0,125/0,25 sem perda foi o mais rápido na primeira
+rodada e o mais lento na segunda (RTT mediano de 32,6\,ms). Por isso a escolha
+se apoia no \emph{replay}, que usa o mesmo traço para todos os pares.
+
+\figura{../imgs/rtt_estimado_vs_medido.png}{\linewidth}{RTT medido, RTT estimado (EWMA) e timeout do \texttt{REQ} original nos segmentos 10\,200 a 10\,850 (SR, $N=16$, large, sem perda, piso de 50\,ms).}{fig:rtt}
+
+O EstimatedRTT acompanha o RTT medido em torno de 26–27\,ms, e os picos isolados
+de RTT (35–47\,ms) o puxam por poucas amostras. O timeout fica no piso de
+50\,ms e só sobe, até 80\,ms, quando um pico aumenta o DevRTT (3,8\% dos
+segmentos). Os 16 timeouts da execução inteira foram uma única rajada, marcada
+na figura: a rede segurou os \texttt{DATA} por mais de 50\,ms e os 16
+\texttt{REQ}s da janela venceram juntos. Esses segmentos ficam sem RTT medido,
+pelo filtro de Karn.
+
+\figura{../imgs/timeout_adaptativo.png}{\linewidth}{Timeout do \texttt{REQ} original sobre o RTT medido, trecho de 500 segmentos: sem piso (esquerda) e com piso de 50\,ms (direita).}{fig:timeout}
+
+Sem piso, o timeout segue o RTT a 1–3\,ms de distância, e qualquer variação vira
+timeout espúrio (97 só nesse trecho). É a estimativa excessivamente agressiva
+que o filtro de Karn produz. Com o piso, a mesma rede não gera nenhum timeout no
+trecho, e o timeout só sobe quando um pico de RTT aumenta o DevRTT. Não houve
+estimativa excessivamente conservadora: o maior timeout aplicado com rede
+estável foi de 80\,ms, 12 vezes menor que o fixo.
+
+% ======================= 3 ===========================================
+\section{Comparação entre timeout fixo e adaptativo}
+
+Escolhemos o SR com $N=16$. Foi o protocolo de melhor desempenho na Entrega~2,
+e seu temporizador por segmento é onde um timeout ajustado ao RTT faz mais
+diferença: no GBN, cada timeout reenvia a janela inteira, e a escolha do
+protocolo dominaria a do timeout. As duas execuções de cada perda rodaram em
+seguida, com o mesmo comando a menos do \texttt{--adaptive} (arquivo large,
+semente 42, timeout inicial de 1000\,ms).
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{llrrrr}
+\toprule
+Perda & Timeout & Retransmissões & Tempo total (s) & Throughput (kbit/s) & RTT mediano (ms) \\
+\midrule
+0\%  & fixo       & 0       & 33,2    & 2\,524,6 & 25,6 \\
+0\%  & adaptativo & 49      & 42,6    & 1\,969,7 & 32,6 \\
+5\%  & fixo       & 1\,045  & 647,4   & 129,6    & 26,3 \\
+5\%  & adaptativo & 1\,045  & 66,5    & 1\,261,8 & 27,1 \\
+10\% & fixo       & 2\,267  & 1\,038,2 & 80,8    & 30,2 \\
+10\% & adaptativo & 2\,348  & 97,6    & 859,1    & 27,5 \\
+\bottomrule
+\end{tabular}
+\caption{SR, $N=16$, arquivo large: timeout fixo de 1000\,ms $\times$ adaptativo
+($\alpha=0{,}125$, $\beta=0{,}25$, piso de 50\,ms).}
+\label{tab:fixo}
+\end{table}
+
+\subsection{Interpretação}
+
+\textbf{Com perda, o adaptativo vence com folga.} O número de retransmissões é
+praticamente o mesmo (1\,045 nos dois casos com 5\%; 2\,267 contra 2\,348 com
+10\%), porque as perdas simuladas são as mesmas pela semente. O que muda é o
+custo de cada uma. Com timeout fixo, cada perda paralisa o segmento por 1\,s,
+cerca de 39 RTTs. Com o adaptativo, ela custa $\sim$50\,ms. O resultado foi uma
+transferência 9,7 vezes mais rápida com 5\% (647\,s para 66,5\,s) e 10,6 vezes
+com 10\% (1\,038\,s para 97,6\,s). As 81 retransmissões extras com 10\% foram
+espúrias, todas detectadas pelo \texttt{DATA} duplicado, e custaram apenas uma
+requisição a mais cada.
+
+\textbf{Sem perda, o fixo é suficiente.} Um timeout de 1\,s nunca dispara quando
+nada se perde, então não tem custo. O adaptativo, por ser mais justo, teve 49
+retransmissões espúrias (todas detectadas). A diferença de tempo (33,2\,s contra
+42,6\,s) vem principalmente da rede: o RTT mediano foi de 25,6\,ms na execução
+fixa e de 32,6\,ms na adaptativa. O adaptativo leva vantagem quando há perda
+real, e ela cresce com a taxa de perda e com a razão entre o timeout fixo e o
+RTT. O fixo basta em redes sem perda ou quando o timeout fixo já está próximo
+do RTT.
+
+% ======================= 4 ===========================================
+\section{Análise Wireshark}
+
+Capturamos uma transferência completa do arquivo \emph{large} (10\,485\,760
+bytes, 20\,480 segmentos de 512\,B) com o SR, janela de 16 e timeout fixo de
+70\,ms (\texttt{--protocol sr --window 16 --timeout 70}).
+
+\subsection{Visão geral da sessão}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_hello.png}
+    \caption{\texttt{HELLO} (pacote 1, $t=0$).}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_ok_hello.png}
+    \caption{\texttt{OK} (pacote 2, $t=50{,}906$\,ms).}
+  \end{subfigure}
+
+  \medskip
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_primeiro_req.png}
+    \caption{Primeiro \texttt{REQ|seq=0} (pacote 3, $t=51{,}141$\,ms).}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_fin.png}
+    \caption{\texttt{FIN|checksum=\ldots} (pacote 61\,511, $t=36{,}123$\,s),
+      enviado após o último segmento.}
+  \end{subfigure}
+
+  \medskip
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_done.png}
+    \caption{\texttt{DONE|ok=1|expected=\ldots} (pacote 61\,512,
+      $t=36{,}148$\,s)}
+  \end{subfigure}
+  \caption{Visão geral da sessão completa: \texttt{HELLO} $\rightarrow$
+    \texttt{OK} $\rightarrow$ \texttt{REQ}/\texttt{DATA}/\texttt{ACK}
+    $\rightarrow$ \texttt{FIN} $\rightarrow$ \texttt{DONE}.}
+  \label{fig:ws1}
+\end{figure}
+
+\subsection{Eventos de retransmissão}
+
+A captura tem 34 \texttt{REQ}s repetidos, exatamente nos 34 segmentos que o CSV
+marca com \texttt{retransmissions=1}. Eles formam três rajadas: segmentos
+2885–2900 (16), 8621–8630 (10) e 10371–10378 (8). Analisamos dois eventos, o
+primeiro segmento de duas rajadas (Tabela~\ref{tab:ws-retx},
+Figuras~\ref{fig:ws2}).
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_2885_retransmissao_1.png}
+    \caption{\texttt{REQ|seq=2885} original: pacote 8\,630.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_2885_retransmissao_2.png}
+    \caption{\texttt{REQ|seq=2885} retransmitido: pacote 8\,674.}
+  \end{subfigure}
+  \caption{Retransmissão do segmento 2\,885 no Wireshark (pacotes marcados).}
+  \label{fig:ws2885}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_retransmissao_1_req.png}
+    \caption{\texttt{REQ|seq=10371} original: pacote 31\,139,
+      $t=18{,}231653505$\,s.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{../imgs/wireshark/e3_retransmissao_2_req.png}
+    \caption{\texttt{REQ|seq=10371} retransmitido: pacote 31\,184,
+      $t=18{,}301913013$\,s.}
+  \end{subfigure}
+  \caption{Retransmissão do segmento 10\,371 no Wireshark (pacotes marcados).}
+  \label{fig:ws2}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Segmento 2\,885} & \multicolumn{2}{c}{Segmento 10\,371} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Pacote & Frame & $t$ (s) & Frame & $t$ (s) \\
+\midrule
+\texttt{REQ} original      & 8\,630 & 5,104193 & 31\,139 & 18,231654 \\
+\texttt{REQ} retransmitido & 8\,674 & 5,175018 & 31\,184 & 18,301913 \\
+\texttt{DATA} (resposta ao original) & 8\,685 & 5,193419 & 31\,186 & 18,305320 \\
+\texttt{DATA} duplicado    & 8\,738 & 5,213596 & 31\,240 & 18,326758 \\
+\midrule
+$\Delta t$ entre os \texttt{REQ}s & \multicolumn{2}{r}{70,83\,ms} & \multicolumn{2}{r}{70,26\,ms} \\
+RTT real do \texttt{REQ} original & \multicolumn{2}{r}{89,23\,ms} & \multicolumn{2}{r}{73,67\,ms} \\
+\bottomrule
+\end{tabular}
+\caption{Dois eventos de retransmissão medidos na captura.}
+\label{tab:ws-retx}
+\end{table}
+
+\texttt{DATA} do \texttt{REQ} original chegou em todos os casos, entre 0,2 e
+32\,ms depois da retransmissão, e o servidor ainda respondeu ao \texttt{REQ}
+repetido com um \texttt{DATA} duplicado (por isso há 20\,514 \texttt{DATA}s).
+O RTT real dos \texttt{REQ}s originais foi de 70,4 a 102,4\,ms (mediana de
+81,1\,ms), contra 25,9\,ms no resto da sessão: são três picos de atraso
+passageiros, com rajadas de 8 a 16 segmentos seguidos. Com o RTT normal, o
+timeout fixo de 70\,ms já é quase 3 RTTs; ainda assim, cada pico o ultrapassou.
+
+\subsection{Correlação com o CSV}
+
+Aproveitando os eventos de retransmissão, podemos utilizar esses mesmo eventos para buscar a correlação deles com as linhas do CSV.
+
+\figura{../imgs/wireshark/e3_csv_retransmissao.png}{0.65\linewidth}{Linhas do
+CSV da rajada 2885–2900 (evento 1): \texttt{rtt\_ms} vazio,
+\texttt{retransmissions=1}, \texttt{timeout\_occurred=1} e
+\texttt{timeout\_ms=70}.}{fig:ws3}
+
+Para alinhar os relógios, usamos o segmento~0: o primeiro \texttt{DATA} está em
+$t=77{,}016$\,ms na captura e em 21:31:45.013693 no CSV, então $t=0$ equivale a
+21:31:44.936677. O \texttt{timestamp} do CSV é o instante de chegada do
+\texttt{DATA}. O \texttt{DATA} que respondia ao \texttt{REQ} original do
+segmento 2\,885 (pacote 8\,685, $t=5{,}193419$\,s) cai em 21:31:50.130096, a
+0,15\,ms da linha do CSV. O mesmo vale para o segmento 10\,371 (pacote 31\,186,
+21:32:03.241997, contra 21:32:03.241968 no CSV). Nos 20\,480 segmentos, o
+\texttt{timestamp} do CSV fica entre $-0{,}19$ e $+1{,}39$\,ms do primeiro
+\texttt{DATA} na captura (mediana de $-0{,}12$\,ms).
+
+Os outros campos também batem com a captura:
+\begin{itemize}[nosep]
+  \item \texttt{rtt\_ms} vazio: o segmento foi retransmitido e, pelo algoritmo
+    de Karn, não gera amostra. Por isso o \texttt{rtt\_estimated\_ms}
+    (26,112\,ms) não muda em toda a rajada.
+  \item \texttt{throughput\_kbps} = 45,885: $512 \times 8 / 89{,}26$\,ms. O
+    cliente mede do \texttt{REQ} original até o \texttt{DATA}, e os 89,26\,ms
+    são o RTT real de 89,23\,ms da Tabela~\ref{tab:ws-retx}.
+  \item O CSV não distingue a retransmissão espúria da necessária. Só a
+    captura mostra os 34 \texttt{DATA} duplicados. No modo adaptativo, o
+    cliente usa justamente esse duplicado para detectar a espúria
+    (Seção~2).
+\end{itemize}
+
+\subsection{Medição de RTT}
+
+\figura{../imgs/wireshark/e3_rtt_medicao.png}{0.65\linewidth}{Medição do RTT
+do segmento~0: \texttt{REQ|seq=0} (pacote 3) e primeiro \texttt{DATA}
+(pacote 19).}{fig:ws5}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Segmento & RTT Wireshark (ms) & RTT CSV (ms) & Diferença (ms) \\
+\midrule
+0       & 25,875 & 26,058 & 0,183 \\
+1       & 25,858 & 26,131 & 0,273 \\
+5\,000  & 26,375 & 26,422 & 0,047 \\
+10\,000 & 25,125 & 25,255 & 0,130 \\
+20\,479 & 26,336 & 26,368 & 0,032 \\
+\midrule
+20\,446 segmentos (mediana) & 25,884 & 25,965 & 0,072 \\
+\bottomrule
+\end{tabular}
+\caption{RTT medido no Wireshark (\texttt{REQ} $\rightarrow$ primeiro
+\texttt{DATA}) e registrado pelo cliente. A última linha cobre todos os
+segmentos não retransmitidos.}
+\label{tab:ws-rtt}
+\end{table}
+
+No segmento~0 (Figura~\ref{fig:ws5}), o Wireshark mede
+$0{,}077015583 - 0{,}051140958 = 25{,}875$\,ms, e o cliente, 26,058\,ms. A
+comparação vale para a sessão inteira (Tabela~\ref{tab:ws-rtt}): nos 20\,446
+segmentos sem retransmissão, o cliente mede em média 0,086\,ms a mais.
+
+O segmento~0 tem uma das maiores diferenças porque é o primeiro
+pacote do processo. A medição do Wireshark é a mais próxima do RTT de rede, mas
+a do cliente é fiel o bastante para alimentar o estimador: o erro é duas
+ordens de grandeza menor que o desvio do próprio RTT.
+
+\figura{../imgs/wireshark/e3_wireshark_terminal.png}{0.9\linewidth}{Saída do
+cliente na execução capturada}{fig:ws4}
+
+% ======================= 5 ===========================================
+\section{Visão integrada - comparação final de todos os protocolos}
+
+Esta seção usa só os quatro CSVs de \texttt{results/entrega03/visao\_integrada\_tabela/},
+todos com o arquivo \emph{large}, sem perda simulada, $N=1$ para o SAW e $N=16$
+para GBN e SR. GBN e SR usam timeout fixo de 80\,ms; o SAW é a execução da
+Entrega~1 (15/10), com timeout fixo de 1000\,ms. O throughput é o medido ao
+longo da sessão: total de bytes $\times 8$ pelo tempo entre o primeiro
+\texttt{REQ} e o último \texttt{DATA} (calculado com
+\texttt{scripts/calc\_metrics.py}). O SR aparece duas vezes, porque há duas
+execuções equivalentes.
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{lrlrrr}
+\toprule
+Protocolo & Janela & Timeout & Throughput (kbit/s) & Retransmissões & Tempo (s) \\
+\midrule
+SAW          & 1  & fixo 1000\,ms & 136,4    & 3  & 614,8 \\
+GBN          & 16 & fixo 80\,ms   & 2\,468,1 & 80 & 34,0  \\
+SR (exec.~1) & 16 & fixo 80\,ms   & 2\,340,3 & 17 & 35,8  \\
+SR (exec.~2) & 16 & fixo 80\,ms   & 2\,279,9 & 0  & 36,8  \\
+\bottomrule
+\end{tabular}
+\caption{Resultados dos CSVs da visão integrada (arquivo large, sem perda
+simulada). As quatro transferências têm os 20\,480 segmentos.}
+\label{tab:final}
+\end{table}
+
+Nenhum desses CSVs foi gerado com \texttt{--adaptive}: o timeout é constante
+em todas as linhas. Por isso esta seção não traz uma linha de SR adaptativo; a
+comparação entre timeout fixo e adaptativo está na Seção~3.
+
+\figura{../imgs/comparacao_throughput.png}{0.95\linewidth}{Throughput médio dos protocolos e configurações comparados (arquivo large, sem perda simulada). SAW com timeout fixo de 1000\,ms; GBN e SR com 80\,ms.}{fig:barras}
+
+O gráfico mostra três pontos:
+\begin{enumerate}[nosep]
+  \item \textbf{O SAW fica preso a um segmento por RTT.} Seus 136,4\,kbit/s
+    ficam a 99,4\% do limite teórico de $512\cdot 8/\text{RTT}$ para o RTT
+    médio da execução (29,8\,ms, ou 137,3\,kbit/s): o canal fica ocioso quase
+    o tempo todo, esperando o \texttt{DATA} de cada \texttt{REQ}. A rede
+    estava parecida com a das outras execuções (RTT mediano de 26,1\,ms,
+    contra 24,8 a 25,8\,ms). O timeout de 1000\,ms pesa pouco aqui: foram só 3
+    timeouts, cerca de 3\,s dos 614,8\,s da sessão.
+  \item \textbf{A janela deslizante tira o cliente desse limite.} Com 16
+    segmentos em voo cobrindo o RTT, GBN e SR chegam a 2\,280--2\,470\,kbit/s,
+    de 16,7 a 18,1 vezes o SAW, e terminam em $\sim$34--37\,s contra 615\,s.
+    Esse ganho não vem de timeout: com poucas retransmissões nos dois casos, o
+    ganho vem de ter 16 segmentos em voo.
+  \item \textbf{GBN e SR empatam sem perda.} As três execuções de janela
+    diferem em até 8\%, na faixa de variação entre execuções equivalentes, e o
+    ordenamento GBN $>$ SR $>$ SR não indica que um protocolo seja mais rápido
+    que o outro. O GBN teve 80 retransmissões, que são 5 timeouts reenviando
+    os 16 segmentos da janela; a execução~1 do SR teve 17 reenvios, de
+    segmentos isolados; e a execução~2 do SR não teve nenhum. A diferença só
+    aparece com perda: o SR retransmite apenas o segmento cujo timer estourou
+    (Entrega~2: com 10\% de perda, 16,0 reenvios por erro no GBN contra 1,21
+    no SR).
+\end{enumerate}
+
+% ======================= 6 ===========================================
+\section{Conclusão}
+
+\textbf{Melhor protocolo.} No ambiente do projeto (rede real, RTT de
+$\sim$22–30\,ms), o SR com $N=16$ foi o melhor. Sem perda, teve até
+2\,525\,kbit/s, 18,5 vezes o SAW. Nessa condição, o GBN com a mesma janela e
+timeout curto empata com ele (2\,468\,kbit/s), porque quase não há o que
+retransmitir. A diferença está no erro: o SR reenvia só o segmento atrasado,
+enquanto o GBN reenvia a janela. Com 10\% de perda e $N=16$, o SR fez 234
+retransmissões contra 3\,878 do GBN (Entrega~2), e uma rede com perda natural e
+timeout de 1\,s derrubou o GBN para 611\,kbit/s. Somado ao timeout adaptativo,
+o SR transferiu os 10\,MB com 10\% de perda em 97,6\,s, contra 1\,038\,s com
+timeout fixo de 1\,s.
+
+\textbf{O RTT adaptativo valeu a complexidade?} Sim, mas não pelos motivos que
+esperávamos. A fórmula do TCP sozinha \emph{piorou} o cliente: o timeout colado
+no RTT gerou 3\,987 retransmissões espúrias sem nenhuma perda. Só depois do
+piso, do \emph{backoff} e da recuperação de amostras por \texttt{DATA} duplicado
+o adaptativo passou a entregar o ganho esperado: $\sim$10 vezes menos tempo com
+5\% e 10\% de perda, ao custo de algumas dezenas de retransmissões espúrias
+inofensivas sem perda. A complexidade extra foi necessária porque o filtro de
+Karn, ao descartar as amostras lentas, cega o estimador. Um timeout fixo
+curto (80\,ms) chega perto do mesmo desempenho, mas só porque escolhemos o
+valor olhando o RTT medido; a captura mostrou que mesmo 70\,ms, quase 3 RTTs,
+gerou 34 retransmissões espúrias em três picos de atraso. O adaptativo
+encontra esse valor sozinho e o ajusta quando a rede muda.
+
+\textbf{O que faríamos diferente.}
+\begin{itemize}[nosep]
+  \item Repetir cada cenário várias vezes, intercalando as configurações e
+    registrando o RTT mediano de cada execução desde o início. Com uma execução
+    por cenário, a rede (RTT de 26 a 93\,ms na mesma tarde) pesou mais que o
+    protocolo em várias comparações.
+  \item Capturar o Wireshark junto com os experimentos, e não depois: só a
+    captura distinguiu retransmissão espúria de perda real.
+  \item Fixar um único timeout de referência para todas as tabelas desde o
+    início. Misturar 1\,s e 80\,ms levou a comparações em que o timeout
+    pesava mais que o protocolo.
+  \item Gravar os logs completos de cada execução (MD5 e \texttt{DONE})
+    automaticamente e de forma imutável, evitando a perda de 11 logs da
+    Entrega~2.
+  \item Escrever o estimador de RTT e o replay de traços antes de ir à rede
+    real: o replay isolou $\alpha$ e $\beta$ de forma que execuções reais não
+    conseguiram.
+  \item Implementar o timeout adaptativo de forma comum aos três protocolos,
+    num único módulo de temporização.
+\end{itemize}
+
+% ======================= ANEXOS ======================================
+\section*{Anexos}
+\addcontentsline{toc}{section}{Anexos}
+\begin{sloppypar}
+
+\textbf{CSVs.} Os CSVs de todas as execuções citadas seguem em anexo, no padrão
+\texttt{metrics\_grupo07\_<protocolo>\_<AAAAMMDD\_HHMMSS>.csv}: as 3 sessões
+SAW da Entrega~1 (small, medium e large), os 21 cenários da Entrega~2 (small)
+e as execuções SR da Entrega~3 (large): piso do timeout, fixo $\times$
+adaptativo, as varreduras de $\alpha$ e $\beta$ e a execução capturada no
+Wireshark, além das execuções da tabela integrada (SAW, GBN e SR).
+
+\textbf{MD5.} Entrega~1: small \texttt{317d6890…2aba}, medium
+\texttt{69e62b40…4644} e large \texttt{22473c90e995d0eff6ff8006d17de17c}, todos
+com \texttt{DONE|ok=1}. Entrega~2 (small): MD5 \texttt{317d6890…2aba} conferido
+nas 10 execuções com log preservado, de SAW, GBN e SR. Em novembro, o servidor passou a gerar o
+arquivo com a semente \texttt{rdtunb\_grupo07\_2026\_11}, então o large das
+execuções de 10/11 tem outro MD5. GBN ($N=16$, large, 10/11):
+\texttt{f0458b418ea6ca974c63f654baee06fc}, igual ao \texttt{checksum} do
+\texttt{OK}, com \texttt{DONE|ok=1}. O mesmo MD5, com
+\texttt{DONE ok=1}, aparece nos prints do terminal do GBN e do SR com 80\,ms e na execução capturada, onde também está
+no \texttt{FIN} e no \texttt{DONE} da própria captura (pacotes 61\,511 e
+61\,512). Das execuções de varredura da Entrega~3 (piso, fixo $\times$
+adaptativo e EWMA), os logs com o MD5 não foram guardados; os CSVs registram os 20\,480 segmentos de cada execução.
+
+\end{sloppypar}
+
+% ======================= REFERÊNCIAS =================================
 \begin{thebibliography}{9}
-  \bibitem{kurose}
-    J. F. Kurose e K. W. Ross, \textit{Computer Networking: A Top-Down Approach},
-    8th ed. Hoboken: Pearson, 2021.
-  \bibitem{rfc768}
-    J. Postel, ``User Datagram Protocol,'' RFC 768, IETF, 1980.
+  \bibitem{kurose} J. F. Kurose e K. W. Ross, \textit{Computer Networking: A Top-Down
+    Approach}, 8th ed. Hoboken: Pearson, 2021.
+  \bibitem{rfc768} J. Postel, ``User Datagram Protocol,'' RFC 768, IETF, 1980.
     Disponível em: \url{https://www.rfc-editor.org/rfc/rfc768}.
-  \bibitem{rfc1321}
-    R. Rivest, ``The MD5 Message-Digest Algorithm,'' RFC 1321, IETF, 1992.
+  \bibitem{rfc1321} R. Rivest, ``The MD5 Message-Digest Algorithm,'' RFC 1321, IETF, 1992.
     Disponível em: \url{https://www.rfc-editor.org/rfc/rfc1321}.
+  \bibitem{rfc6298} V. Paxson, M. Allman, J. Chu e M. Sargent, ``Computing TCP's
+    Retransmission Timer,'' RFC 6298, IETF, 2011. Disponível em:
+    \url{https://www.rfc-editor.org/rfc/rfc6298}.
 \end{thebibliography}
 
 \end{document}
