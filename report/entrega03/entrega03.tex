@@ -197,8 +197,8 @@ Tabela~\ref{tab:piso} varia só o piso (SR, $N=16$, \emph{large}).
 \toprule
 Perda & Piso (ms) & Tempo (s) & Retransmissões & Desnecessárias \\
 \midrule
-0\%  & 0   & 42,9  & 1\,089 & 1\,089 \\
-0\%  & 50  & 56,6  & 1\,840 & 1\,840 \\
+0\%  & 0$^*$  & 38,6  & 1\,433 & 1\,433 \\
+0\%  & 50$^*$ & 40,5  & 29     & 29 \\
 0\%  & 100 & 37,0  & 0      & 0 \\
 0\%  & 200 & 50,0  & 0      & 0 \\
 \midrule
@@ -210,7 +210,8 @@ Perda & Piso (ms) & Tempo (s) & Retransmissões & Desnecessárias \\
 \end{tabular}
 \caption{Efeito do piso do timeout (SR, $N=16$, \emph{large}, $\alpha=0{,}125$,
 $\beta=0{,}25$). ``Desnecessárias'' são as retransmissões em que o
-\texttt{DATA} original chegou depois do \texttt{REQ} repetido.}
+\texttt{DATA} original chegou depois do \texttt{REQ} repetido. $^*$Mediana de
+3 repetições intercaladas; as demais linhas são uma execução.}
 \label{tab:piso}
 \end{table}
 
@@ -219,14 +220,16 @@ foi o melhor compromisso. Sem piso, 970 das 3\,237 retransmissões foram
 desnecessárias. Com 100 e 200\,ms quase não há retransmissão desnecessária,
 mas cada perda espera mais, e o tempo total sobe para 184 e 294\,s.
 
-Sem perda, o piso de 50\,ms teve 1\,840 retransmissões desnecessárias, e
-nenhuma com 100\,ms. A causa aparece na Figura~\ref{fig:timeout}: durante a
-campanha, a rede alternava blocos de 16 segmentos (uma janela) com RTT de
-$\sim$33\,ms e de $\sim$65\,ms. Quando um bloco lento chega com o timeout já
-de volta perto de 50\,ms, os 16 \texttt{REQ}s vencem juntos. Mantivemos 50\,ms
-porque o custo dessas retransmissões é pequeno (o tempo total sem perda variou
-de 37 a 57\,s com qualquer piso), enquanto um piso de 100\,ms quase dobra o
-tempo com perda.
+Sem perda, repetimos o piso 0 e o de 50\,ms três vezes, intercalados. O piso
+0 teve de 1\,203 a 1\,737 retransmissões desnecessárias, e o de 50\,ms, de 14
+a 35, nas três repetições.
+
+A execução da campanha usada nas Seções~3 e~5 teve 1\,840 retransmissões
+desnecessárias com o piso de 50\,ms. Nela a rede alternava blocos de 16
+segmentos (uma janela) com RTT de $\sim$33\,ms e de $\sim$65\,ms
+(Figura~\ref{fig:timeout}). Quando um bloco lento chega com o timeout perto de
+50\,ms, os 16 \texttt{REQ}s vencem juntos. Nas repetições esses blocos não
+apareceram: o p90 do RTT ficou entre 26 e 34\,ms.
 
 \subsection{Escolha de \texorpdfstring{$\alpha$}{alfa} e \texorpdfstring{$\beta$}{beta}}
 
