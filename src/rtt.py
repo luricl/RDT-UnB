@@ -11,7 +11,7 @@ responde. Esse filtro é feito por quem chama (ver `sr.segment_stats`).
 O piso `min_timeout_ms` existe porque o filtro de Karn tem um efeito colateral:
 um segmento lento estoura o timer, é retransmitido e sua amostra é descartada.
 Sem piso, só as amostras rápidas sobrevivem, o DevRTT encolhe e o timeout cola
-no RTT, gerando timeouts espúrios em cadeia. O TCP faz o mesmo (RFC 6298, 2.4).
+no RTT, gerando timeouts prematuros em cadeia. O TCP faz o mesmo (RFC 6298, 2.4).
 """
 
 DEFAULT_ALPHA = 0.125  # valor recomendado pela RFC 6298 e pelo Kurose

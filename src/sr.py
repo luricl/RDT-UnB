@@ -72,7 +72,7 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
     `alpha` e `beta` ajustando as EWMAs. A cada retransmissão, o timer daquele
     segmento dobra (backoff exponencial, RFC 6298, 5.5).
 
-    Retransmissão espúria: o servidor responde a todo REQ, então se o DATA
+    Retransmissão desnecessária: o servidor responde a todo REQ, então se o DATA
     original só estava atrasado chegam dois DATA do mesmo segmento. Num
     segmento retransmitido uma vez, o segundo DATA prova que o primeiro
     respondia ao REQ original, e o tempo desde esse REQ vira uma amostra de
@@ -112,7 +112,7 @@ def download(sock, server_addr, total_segments, timeout_ms, window,
         data = receive_data(sock, server_addr, nearest_deadline)
 
         # DATA duplicado de segmento já recebido: se ele foi retransmitido uma
-        # vez, a retransmissão foi espúria e o RTT desde o REQ original é válido.
+        # vez, a retransmissão foi desnecessária e o RTT desde o REQ original é válido.
         if data is not None and data.seq in retransmitted_once:
             spurious += 1
             if adaptive:

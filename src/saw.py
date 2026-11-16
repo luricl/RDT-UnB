@@ -84,12 +84,11 @@ def download(sock, server_addr, total_segments, timeout_ms,
                 segments=stats)
 
         now = time.monotonic()
-        # RTT medido a partir do último REQ: com retransmissão não dá para
-        # saber a qual REQ o DATA responde (algoritmo de Karn).
-        rtt_ms = (now - sent_at) * 1000
-        # Pelo mesmo motivo (Karn), só amostras sem retransmissão alimentam a
-        # estimativa EWMA; nas outras a estimativa anterior é mantida.
-        if attempt == 0:
+        # Só segmentos sem retransmissão têm RTT não ambíguo (Karn): o DATA
+        # pode responder a qualquer REQ enviado. Nos demais, rtt_ms fica vazio
+        # e a EWMA mantém a estimativa anterior, como no GBN e no SR.
+        rtt_ms = (now - sent_at) * 1000 if attempt == 0 else None
+        if rtt_ms is not None:
             estimator.update(rtt_ms)
         stats.append(SegmentStats(seq=seq, received_at=time.time(),
                                   size_bytes=len(data.payload), rtt_ms=rtt_ms,
